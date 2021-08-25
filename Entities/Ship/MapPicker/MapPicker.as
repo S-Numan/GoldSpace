@@ -48,8 +48,17 @@ void GetButtonsFor( CBlob@ this, CBlob@ caller )
 
 void ButtonFunction(CPlayer@ caller, CBitStream@ params, NuMenu::IMenu@ menu, u16 key_code)
 {
+    CRules@ rules = getRules();
+    
     print("button pressed mhm");
+    
     //Display map picking menu
     //Does the captain decide? Or do the crew vote.
     //For the moment show a menu that allows you to select several maps. Upon selecting a map, move everyone to the pod area or something. Once everyone is in the pod area, or the captain has been there for 20 seconds. Next map.
+
+    
+    rules.set_f32("gravity_mult", 1.0f);
+    rules.set_u8("map_type", 1);//0 for space. 1 for underground
+
+    LoadMap("GroundMap1.png");
 }
