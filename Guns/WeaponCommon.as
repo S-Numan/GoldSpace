@@ -1,3 +1,7 @@
+//Tuple
+//1: Current Stat. 2: Base Stat.
+
+
 /*::Weapon stats::
         explode size
         explode damage
@@ -91,7 +95,8 @@ class activatable
 
     float use_count;//Amount of times left that this can be used.
 
-    float charge_up_time;//Time the player must be holding the use button to activate a use of this weapon.
+    float charge_up_time;//Time the player must be holding the use button to activate a use of this weapon. Think spinup time for a minigun.
+    float charge_down_per_tick;//Amount the float above charge_up_time is subtracted by every tick.
 
 
     float morium_cost;//Morium cost per use when creating ammo for the activatable. a cost below 0 makes this activatable not rechargable
@@ -134,6 +139,7 @@ class weapon : activatable
         spread_gain_per_shot = 0.0f;
         spread_loss_per_tick = 0.0f;
 
+        projectile_host_inertia = false;
         projectile_damage = 0.0f;
         projectile_speed = -1.0f;//Below 0 is hitscan
         projectile_gravity = 0.0f;
@@ -142,6 +148,9 @@ class weapon : activatable
         projectile_lifespan = 0;
         projectile_bounce_count = 0;
         projectile_pierce_count = 0;
+        projectile_friendly_fire_damage = -1.0f;
+        projectile_aoe_damage = 0.0f;
+        projectile_aoe_radius = 0.0f;
 
         queued_projectiles = 0;
         projectiles_on_shot = 1;
@@ -335,6 +344,8 @@ class weapon : activatable
     //
         //EFFECTS
         //
+            bool projectile_host_inertia;//If this is true, the velocity of the host is applied to the projectile.
+
             float projectile_damage;//below 0 heals
 
             float projectile_speed;//Below 0 is hitscan.
@@ -350,6 +361,12 @@ class weapon : activatable
             u16 projectile_bounce_count;//Amount of times the projectile can bounce. default 0
             
             u16 projectile_pierce_count;//Amount of times the projectile can pierce enemies without dying. default 0
+        
+            float projectile_friendly_fire_damage;//Mutliplier to the amount of damage hitting an ally with this does. Setting this value below 0 makes this projectile not even hit friendlies.
+
+            float projectile_aoe_radius;//Amount of distance the aoe goes from the projectile.
+
+            float projectile_aoe_damage;//Amount of damage the aoe does.
         //
         //EFFECTS
 
