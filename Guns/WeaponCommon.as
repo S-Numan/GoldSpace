@@ -1,5 +1,11 @@
+#include "NuLib.as";
+#include "ModiVars.as";
+#include "WeaponModifiers.as";
+
 //Tuple
 //1: Current Stat. 2: Base Stat.
+
+//Change clip to mag. It's shorter and more accurate based on the logic.
 
 
 /*::Weapon stats::
@@ -9,8 +15,8 @@
         
 enum RarityTypes
 {
-    Undefined,
-    Common,
+    Undefined = 0,
+    Common = 1,
     Uncommon,
     Rare,
     Legendary,
@@ -24,25 +30,27 @@ enum RarityTypes
 
 enum WeaponTypes
 {
-    //Primary
-    PriSubmachine,
-    PriMachine,
-    PriAssault,
-    PriShotgun,
-    PriMarksman,
-    PriLauncher,
-    PriSpecial,
-    PriThrowable,
-    PriMelee,
-    PriClose,
-    PriDual,  
+    SubmachineGun = 1,
+    MachineGun,
+    AssaultGun,
+    Shotgun,
+    MarksmanGun,
+    Launcher,
+    Special,
+    Throwable,
+    Melee,
+    Close,
+    Dual,//Should this be it's own gun type? as in, when you have a pair of guns both are "dual" type guns? Like a single weapon? Or should I keep weapons seperate and have dual weilding be a feature of sorts?
+    Pistol,
+    Misc,
+    Dev,//Developer weapons. For testing purposes.
 
     //Secondary
-    SecPistol,
-    SecSubmachine,
-    SecShotgun,
-    SecMelee,
-    SecMisc,
+    //SecPistol,
+    //SecSubmachine,
+    //SecShotgun,
+    //SecMelee,
+    //SecMisc,
 
 
 
@@ -50,125 +58,162 @@ enum WeaponTypes
     WeaponTypeCount
 }
 
-
 class activatable
 {
     bool Init()
     {
-        rarity = Undefined;
+        ticks_since_created = Nu::u32_max();
 
-        knockback = 0.0f;
+        array<Modif32@> _f32_array = array<Modif32@>();
+        @f32_array = @_f32_array;
+        f32_array.reserve(10);
 
-        full_auto = false;
-        remove_on_empty = false;
-        use_interval = 0;
-        max_use_count = 1;
-        use_count = 1;
-        charge_up_time = 0;
+        array<Modibool@> _bool_array = array<Modibool@>();
+        @bool_array = @_bool_array;
+        bool_array.reserve(5);
 
-        morium_cost = 0.0f;
+        bool_array.push_back(@full_auto);
+        bool_array.push_back(@use_on_release);
+        bool_array.push_back(@remove_on_empty);
+
+        //Put vars into the array.
+        f32_array.push_back(@knockback);
+        f32_array.push_back(@rarity);
+        f32_array.push_back(@use_afterdelay);
+        f32_array.push_back(@use_delay);
+        f32_array.push_back(@max_use_count);
+        f32_array.push_back(@charge_up_time);
+        f32_array.push_back(@charge_down_per_tick);
+        f32_array.push_back(@morium_cost);
 
 
 
         return true;
     }
+
+    array<Modif32@>@ f32_array;
+    u16 getModif32Point(string _name)
+    {
+        int _name_hash = _name.getHash();
+        for(u16 i = 0; i < f32_array.size(); i++)
+        {
+            if(f32_array[i].getNameHash() == _name_hash)
+            {
+                return i;
+            }
+        }
+        return Nu::u16_max();
+    }
+    array<Modibool@>@ bool_array;
+    u16 getModiboolPoint(string _name)
+    {
+        int _name_hash = _name.getHash();
+        for(u16 i = 0; i < bool_array.size(); i++)
+        {
+            if(bool_array[i].getNameHash() == _name_hash)
+            {
+                return i;
+            }
+        }
+        return Nu::u16_max();
+    }
+
 
     bool Tick()
     {
-
-
+        ticks_since_created++;
+        
         return true;
     }
 
-    u8 rarity;//Should be an enum.
+    void BaseValueChanged()
+    {
+        print("activatable base value changed");
+        RefreshPassiveModifers();
+    }
+    
+    void RefreshPassiveModifers()
+    {
+        for(u16 i = 0; i < passive_modifiers.size(); i++)
+        {
+            passive_modifiers[i].PassiveTick(@f32_array);
+        }
+    }
+    void RefreshActiveModifers()
+    {
 
-    float knockback;//pushes you around when activated, specifically it pushes you away from the direction your mouse aiming.
+    }
+
+    array<DefaultModifier@> passive_modifiers;//If the modifier has passive changes
+    array<DefaultModifier@> active_modifiers;//If the modifer has active changes
+    //A single modifer can be in both the passive and active modifer array, provided they have both passive and active changes.
+
+    u32 ticks_since_created;
+
+    Modif32@ rarity = Modif32(@BASE_VALUE_CHANGED(BaseValueChanged), "rarity", Undefined);//Should be an enum.
+
+    Modif32@ knockback = Modif32(@BASE_VALUE_CHANGED(BaseValueChanged), "knockback", 0.0f);//pushes you around when activated, specifically it pushes you away from the direction your mouse is aiming.
 
 
-    bool full_auto;//false means semi-auto. true means you can hold the button to keep automatically activating it.
+    Modibool@ full_auto = Modibool(@BASE_VALUE_CHANGED(BaseValueChanged), "full_auto", false);//false means semi-auto. true means you can hold the button to keep automatically activating it.
 
-    bool remove_on_empty;//Kills this when no more use uses are left
+    Modibool@ use_on_release = Modibool(@BASE_VALUE_CHANGED(BaseValueChanged), "use_on_release", false);//When this is false, it is default behavior. This activatable gets used on press. When this is true, the weapon only gets used on release.
 
-    float use_interval;//basically rate of fire. How frequently can this be used? This many ticks before it can be reused.
-
-    float max_use_count;//Default max amount this can be used. Default is 1. CONST
-
-    float use_count;//Amount of times left that this can be used.
-
-    float charge_up_time;//Time the player must be holding the use button to activate a use of this weapon. Think spinup time for a minigun.
-    float charge_down_per_tick;//Amount the float above charge_up_time is subtracted by every tick.
+    Modibool@ remove_on_empty = Modibool(@BASE_VALUE_CHANGED(BaseValueChanged), "remove_on_empty", false);//Kills this when no more use uses are left
 
 
-    float morium_cost;//Morium cost per use when creating ammo for the activatable. a cost below 0 makes this activatable not rechargable
+    Modif32 use_afterdelay = Modif32(@BASE_VALUE_CHANGED(BaseValueChanged), "use_afterdelay", 0.0f);//basically rate of fire. How frequently can this be used? This many ticks before it can be reused.
+
+    Modif32 use_delay = Modif32(@BASE_VALUE_CHANGED(BaseValueChanged), "use_delay", 0.0f);//If this is 30.0f, it would take 30 ticks after pressing the use button for this activatable to be used.
+    //After this activatable is "used", this intercepts the use and delays it is designed to do by the amount of ticks specified. Further presses of the use button while this activatable is delayed will do nothing.
+
+
+    Modif32 max_use_count = Modif32(@BASE_VALUE_CHANGED(BaseValueChanged), "max_use_count", 1.0f);//Max amount of times this can be used
+
+    private f32 use_count_left;
+    f32 getUseCountLeft()
+    {
+        return use_count_left;
+    }
+    void setUseCountLeft(f32 value)
+    {
+        use_count_left = value;
+    }
+
+    Modif32 charge_up_time = Modif32(@BASE_VALUE_CHANGED(BaseValueChanged), "charge_up_time", 0.0f);//Time the player must be holding the use button to activate a use of this weapon. Think spinup time for a minigun.
+
+    Modif32 charge_down_per_tick = Modif32(@BASE_VALUE_CHANGED(BaseValueChanged), "charge_down_per_tick", 0.0f);//Amount the float above charge_up_time is subtracted by every tick.
+
+    Modif32 morium_cost = Modif32(@BASE_VALUE_CHANGED(BaseValueChanged), "morium_cost", 0.0f);//Morium cost per use when creating ammo for the activatable. a cost below 0 makes this activatable not rechargable
+    
+    
 
     //u16 times_activated_on_use;//usually 1, but can be more if the activatable is a shotgun or something. Or something more unique. Dunno.
 }
+
+/*
+
+
 
 class weapon : activatable
 {
     bool Init() override
     {
         if(!activatable::Init()) { return false; }
+        u16 i = 0;
 
-        max_ammo = 0.0f;
-        total_ammo = 0.0f;
-
-        ammo_to_clip_per_reload = 0.0f;
-        reload_time = 0;
-        reload_time_left = 0;
-        auto_reload = false;
-
-        overheating = false;
-        heat = 0.0f;
-        max_heat = 0.0f;
-        overheating_multiplier = 1.0f;
-        heat_loss_per_tick = 0.0f;
-        heat_gain_per_shot = 0.0f;
-        damage_on_overheat = 0.0f;
-
-        ammo_per_shot = 1.0f;
-        knockback_per_shot = 0.0f;
-
-        queued_shots = 0;
-        shots_per_use = 1;
-        ticks_between_shots = 0;
-
-        random_shot_spread = 0.0f;
-        min_shot_spread = 0.0f;
-        max_shot_spread = 0.0f;
-        spread_gain_per_shot = 0.0f;
-        spread_loss_per_tick = 0.0f;
-
-        projectile_host_inertia = false;
-        projectile_damage = 0.0f;
-        projectile_speed = -1.0f;//Below 0 is hitscan
-        projectile_gravity = 0.0f;
-        projectile_knockback = 0.0f
-        projectile_max_distance = 0.0f;
-        projectile_lifespan = 0;
-        projectile_bounce_count = 0;
-        projectile_pierce_count = 0;
-        projectile_friendly_fire_damage = -1.0f;
-        projectile_aoe_damage = 0.0f;
-        projectile_aoe_radius = 0.0f;
-
-        queued_projectiles = 0;
-        projectiles_on_shot = 1;
-        ticks_between_projectiles = 0;
-
-        random_projectile_spread = 0.0f;
-        same_tick_forced_spread = 0.0f;
-
-        reload_sound = "Reload.ogg";
-        shot_sound = "AssaultFire.ogg";
+        reload_sfx = "Reload.ogg";
+        shot_sfx = "AssaultFire.ogg";
         projectile_sfx = "";
         equip_weapon_sfx = "";
         empty_clip_sfx = "";
         empty_total_sfx = "";
         empty_clip_use_sfx = "";
         equip_weapon_sfx = "";
-        flesh_hit_sfx = "ArrowHitFlesh.ogg"
+        flesh_hit_sfx = "ArrowHitFlesh.ogg";
         object_hit_sfx = "BulletImpact.ogg";
+
+        return true;
     }
 
     bool Tick() override
@@ -176,6 +221,7 @@ class weapon : activatable
         if(!activatable::Tick()) { return false; }
 
 
+        return true;
     }
 
 
@@ -185,56 +231,87 @@ class weapon : activatable
 
 
 
+    void BaseValueChanged() override
+    {
+        activatable::BaseValueChanged();
+        print("weapon base value changed");
+
+    }
 
 
 
 
-    private float max_ammo;
+    private float[] max_ammo = array<float>(2, 0.0f);
     float getMaxAmmo()//Gets the maximum amount of ammo that this weapon can hold. (not including ammo in clip)
     {
-        return max_ammo
+        return max_ammo[1];
     }
     void setMaxAmmo(float value)
     {
-        max_ammo = value;
+        max_ammo[1] = value;
+        BaseValueChanged();
     }
 
-    private float total_ammo;
     float getTotalAmmo()//Gets the current amount of ammo that this weapon is holding. (not including ammo in clip)
     {
-        return total_ammo
+        return max_ammo[0];
     }
     void setTotalAmmo(float value)
     {
-        total_ammo = value;
+        max_ammo[0] = value;
     }
 
-    float getClipSize()
+    float getClipSize(bool get_base = false)
     {
-        return max_use_count;
+        return getMaxUseCount(get_base);
     }
-    void setClipSize(float value)
+    void setClipSize(float value)//If the clip size is 0, this gun instead draws from max_ammo. As this gun doesn't have a clip.
     {
-        max_use_count = value;
+        setMaxUseCount(value);
     }
 
     float getAmmoInClip()
     {
-        return use_count;
+        return use_count_left;
     }
     void setAmmoInClip(float value)
     {
-        use_count = value;
+        use_count_left = value;
     }
 
-    float getFireRate()
+    float getFireRate(bool get_base = false)
     {
-        return use_interval;
+        return use_afterdelay[get_base ? 1 : 0];
     }
     void setFireRate(float value)
     {
-        use_interval = value;
+        use_afterdelay[1] = value;
+        BaseValueChanged();
     }
+
+
+    private float[] unequip_time = array<float>(2, 0.0f);//Ticks taken to unequip a weapon
+    float getUnequipTime(bool get_base = false)
+    {
+        return unequip_time[get_base ? 1 : 0];
+    }
+    void setUnequipTime(float value)
+    {
+        unequip_time[1] = value;
+        BaseValueChanged();
+    }
+
+    private float[] equip_time = array<float>(2, 0.0f);//Ticks taken to equip a weapon
+    float getEquipTime(bool get_base = false)
+    {
+        return equip_time[get_base ? 1 : 0];
+    }
+    void setEquipTime(float value)
+    {
+        equip_time[1] = value;
+        BaseValueChanged();
+    }
+
 
     //terminology
     //USE                   When the user presses the button to use the gun once.
@@ -242,48 +319,55 @@ class weapon : activatable
     //PROJECTILE            Projectiles from the single SHOT of the gun.
 
 
-    float ammo_to_clip_per_reload;//Amount of ammo added to the clip per reload. 0.0f means max ammo that can be added is added. (I.E default)
+    //RELOADING
+    //
+
+    private float[] ammo_to_clip_per_reload = array<float>(2, 1.0f);//Amount of ammo added to the clip per reload. 0.0f means max ammo that can be added is added. (I.E default)
     //Weapon will continue to reload until clip is full, unless the weapon is used.
 
-    private float reload_time;//Time taken to reload a clip upon pressing the reload button. (in ticks)
-    float getReloadTime()
-    {
-        return reload_time;
-    }
-    void setReloadTime(float value)
-    {
-        reload_time = value;
-    }
 
-    private float reload_time_left;//If this is above 0, the weapon is still reloading. It ticks down by one every 
-    float getReloadTimeLeft()
-    {
-        return reload_time_left;
-    }
-    void setReloadTimeLeft(float value)
-    {
-        reload_time_left = value;
-    }
-    bool isReloading()
-    {
-        if(getReloadTimeLeft() > 0.0f)
+        private float[] reload_time = array<float>(2, 0.0f);//Time taken to reload a clip upon pressing the reload button. (in ticks(float ticks, don't question it.))
+        float getReloadTime(bool get_base = false)
         {
-            return true;
+            return reload_time[get_base ? 1 : 0];
+        }
+        void setReloadTime(float value)
+        {
+            reload_time[1] = value;
+            BaseValueChanged();
         }
 
-        return false;
-    }
+        private float reload_time_left;//If this is above 0, the weapon is still reloading. It ticks down by one every 
+        float getReloadTimeLeft()
+        {
+            return reload_time_left;
+        }
+        void setReloadTimeLeft(float value)
+        {
+            reload_time_left = value;
+        }
+        bool isReloading()
+        {
+            if(getReloadTimeLeft() > 0.0f)
+            {
+                return true;
+            }
 
-    private bool auto_reload;//If this is true, the weapon will automatically reload upon reaching a clip size of 0.
-    bool getAutoReload()
-    {
-        return auto_reload;
-    }
-    void setAutoReload(bool value)
-    {
-        auto_reload = value;
-    }
+            return false;
+        }
 
+        private bool auto_reload;//If this is true, the weapon will automatically reload upon reaching a clip size of 0.
+        bool getAutoReload()
+        {
+            return auto_reload;
+        }
+        void setAutoReload(bool value)
+        {
+            auto_reload = value;
+        }
+
+    //
+    //RELOADING
 
     //HEAT
     //
@@ -316,7 +400,7 @@ class weapon : activatable
 
         //AMOUNT
         //
-            float queued_shots;//Value that holds shots waiting to be activated. Think burst fire weapons.
+            float queued_shots;//Value that holds shots waiting to be activated. Think burst fire weapons. You cannot fire(use) when there are still shots queued up.
             float shots_per_use;//Amount of shots per use.
             float ticks_between_shots;//Only relevant if the stat above is more than 1
         //
@@ -340,40 +424,20 @@ class weapon : activatable
     //
     //Shots
 
-    //PROJECTILES
+    //PROJECTILES            //Maybe put all projectile stuff in it's own class, so each gun can have it's own projectile class? I.E for the charge pistol. Two projectile types for one gun.
     //
         //EFFECTS
         //
-            bool projectile_host_inertia;//If this is true, the velocity of the host is applied to the projectile.
+            bool projectile_host_inertia;//If this is true, the velocity of the host is applied to the projectile on its creation.
 
-            float projectile_damage;//below 0 heals
-
-            float projectile_speed;//Below 0 is hitscan.
-
-            float projectile_gravity;//default is 1.0f.
-
-            float projectile_knockback;//How much the projectile pushes a target back upon hitting.
-        
-            float projectile_max_distance;//Distance the projectile can travel before dying. 0 or below is max.
-
-            u16 projectile_lifespan;//Amount of ticks the projectile can stay alive before it is killed. 0 or below is max.
-
-            u16 projectile_bounce_count;//Amount of times the projectile can bounce. default 0
-            
-            u16 projectile_pierce_count;//Amount of times the projectile can pierce enemies without dying. default 0
-        
-            float projectile_friendly_fire_damage;//Mutliplier to the amount of damage hitting an ally with this does. Setting this value below 0 makes this projectile not even hit friendlies.
-
-            float projectile_aoe_radius;//Amount of distance the aoe goes from the projectile.
-
-            float projectile_aoe_damage;//Amount of damage the aoe does.
+            array<GunProjectile@> projectile;//By default the gun shoot's the 0'th projectile in this array.
         //
         //EFFECTS
 
         //AMOUNT
         //
             float queued_projectiles;//Value that holds projectiles waiting to escape from the gun. Think shotgun like weapons.
-            float projectiles_on_shot;//Amount of projectiles per shot.
+            float projectiles_per_shot;//Amount of projectiles per shot.
             float ticks_between_projectiles;//Only relevant if the stat above is more than 1
         //
         //AMOUNT
@@ -388,6 +452,12 @@ class weapon : activatable
             //random_projectile_spread is applied after this.
         //
         //AIMING
+
+        //SFX
+        //
+            string projectile_sfx;//When created this sound is played.
+        //
+        //SFX
     //
     //PROJECTILES
 
@@ -396,8 +466,6 @@ class weapon : activatable
         string reload_sfx;
 
         string shot_sfx;
-        
-        string projectile_sfx;//Default nothing.
 
         string empty_clip_sfx;//When the gun has 0 ammo in the clip.
 
@@ -424,6 +492,69 @@ class melee : weapon
     float attack_range;
 
     float attack_width;//When this is 0, the attack is a straight infinitely small line.
+}
+
+
+
+
+class GunProjectile
+{
+    //HIT EFFECTS
+    //
+
+        float damage;//below 0 heals
+
+        float damage_shield_mult;//Multiplier to damage against shields
+
+        float damage_health_mult;//Multiplier to damage against health
+
+        float stun_chance;//Chance to stun targets
+
+        float stun_length;//Length that targets are stunned, in ticks.
+
+        float knockback;//How much the projectile pushes a target back upon hitting.
+        
+        float pierce_count;//Amount of times the projectile can pierce enemies without dying. default 0
+
+    //
+    //HIT EFFECTS
+
+    float friendly_fire_damage;//Mutliplier to the amount of damage hitting an ally with this does. Setting this value below 0 makes this projectile not even hit friendlies.
+
+    //TRAVEL EFFECTS
+    //
+
+        float speed;//Below 0 is hitscan.
+
+        float speed_loss_per_tick;//Amount the projectile speed lowers per tick of flying through the air. (can be negative to increase speed over time.)
+
+        float gravity_mult;//default is 1.0f.
+
+        float max_distance;//Distance the projectile can travel before dying. 0 or below is max.
+
+        float lifespan;//Amount of ticks the projectile can stay alive before it is killed. 0 or below is max.
+
+        float bounce_count;//Amount of times the projectile can bounce. default 0
+
+    //
+    //TRAVEL EFFECTS
+
+    
+    //AOE
+    //
+    
+        float aoe_radius;//Amount of distance the aoe goes from the projectile.
+
+        float aoe_damage;//Amount of damage the aoe does.
+
+        float aoe_knockback;//How much stuff is knocked away from the center point of the aoe.
+        
+        float aoe_stun_chance;
+
+        float aoe_stun_length;
+
+    //
+    //AOE
 }
 
 

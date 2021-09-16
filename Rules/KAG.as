@@ -3,6 +3,8 @@
 #include "PrecacheTextures.as"
 #include "EmotesCommon.as"
 
+#include "WeaponCommon.as";//REMOVE THIS LATER. IT SERVES NO PURPOSE
+
 void onInit(CRules@ this)
 {
 	LoadDefaultMapLoaders();
