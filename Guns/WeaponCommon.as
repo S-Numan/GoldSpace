@@ -67,42 +67,39 @@ enum DamageTypes
     DamageTypeCount
 }
 
-class activatable
+class basemodistore
 {
-    bool Init()
+    void Init()
     {
         ticks_since_created = Nu::u32_max();
 
         array<Modif32@> _f32_array = array<Modif32@>();
         @f32_array = @_f32_array;
-        f32_array.reserve(10);
 
         array<Modibool@> _bool_array = array<Modibool@>();
         @bool_array = @_bool_array;
-        bool_array.reserve(5);
 
-        bool_array.push_back(@full_auto);
-        bool_array.push_back(@use_on_release);
-        bool_array.push_back(@remove_on_empty);
-
-        //Put vars into the array.
-        f32_array.push_back(@knockback);
-        f32_array.push_back(@rarity);
-        f32_array.push_back(@use_afterdelay);
-        f32_array.push_back(@use_delay);
-        f32_array.push_back(@max_use_count);
-        f32_array.push_back(@charge_up_time);
-        f32_array.push_back(@charge_down_per_tick);
-        f32_array.push_back(@morium_cost);
-
-
+        array<DefaultModifier@> _all_modifiers = array<DefaultModifier@>();
+        @all_modifiers = @_all_modifiers;
+    }
+    void AfterInit()
+    {
         u16 i;
 
         for(i = 0; i < bool_array.size(); i++)
         {
             bool_array.setBaseValueChangedFunc(@BASE_VALUE_CHANGED(BaseValueChanged));
         }
+        for(i = 0; i < f32_array.size(); i++)
+        {
+            f32_array.setBaseValueChangedFunc(@BASE_VALUE_CHANGED(BaseValueChanged));
+        }
+    }
 
+    bool Tick()
+    {
+        ticks_since_created++;
+        
         return true;
     }
 
@@ -134,36 +131,124 @@ class activatable
     }
 
 
+    void BaseValueChanged()//Called if a base value is changed.
+    {
+        print("basemodistore base value changed");
+        //RefreshPassiveModifiers();
+    }
+    
+    /*void RefreshPassiveModifiers()
+    {
+        for(u16 i = 0; i < all_modifiers.size(); i++)
+        {
+            if(all_modifiers[i].getModifierType() != Active)
+            {
+                all_modifiers[i].PassiveTick(@f32_array);
+            }
+        }
+    }
+    void RefreshActiveModifiers()
+    {
+        for(u16 i = 0; i < all_modifiers.size(); i++)
+        {
+            if(all_modifiers[i].getModifierType() != Passive)
+            {
+                all_modifiers[i].ActiveTick(@f32_array);
+            }
+        }
+    }*/
+
+
+    bool addModifier(DefaultModifier@ _modi)
+    {
+        _modi.PassiveTick(@f32_array);
+        
+        all_modifiers.push_back(@_modi);
+
+        return true;
+    }
+    bool removeModifier(u16 _pos)
+    {
+        if(_pos >= all_modifiers.size()) { Nu::Error("Reached out of bounds"); return false; }
+
+        all_modifiers[_pos].AntiPassiveTick(@f32_array);
+        
+        all_modifiers.removeAt(_pos);
+
+        return true;
+    }
+    bool removeModifier(int _name_hash)
+    {
+        u16 _pos;
+        
+        u16 i;
+        
+        for(i = 0; i < all_modifiers.size(); i++)
+        {
+            if(all_modifiers[i].name_hash == _name_hash)
+            {
+                return removeModifier(i);
+            }
+        }
+
+        return false;
+    }
+    bool removeModifier(string _name)
+    {
+        int _name_hash = _name.getHash();
+        return removeModifier(_name_hash);
+    }
+
+
+    array<DefaultModifier@> all_modifiers;//All modifiers
+
+    u32 ticks_since_created;
+}
+
+class activatable : basemodistore
+{
+    void activatable()
+    {
+        Init();
+
+        
+        bool_array.reserve(5);
+        f32_array.reserve(10);
+        setActivatableModiVars();
+        
+
+        AfterInit();
+    }
+
+    void setActivatableModiVars()
+    {
+        bool_array.push_back(@full_auto);
+        bool_array.push_back(@use_on_release);
+        bool_array.push_back(@remove_on_empty);
+    
+        f32_array.push_back(@knockback);
+        f32_array.push_back(@rarity);
+        f32_array.push_back(@use_afterdelay);
+        f32_array.push_back(@use_delay);
+        f32_array.push_back(@max_use_count);
+        f32_array.push_back(@charge_up_time);
+        f32_array.push_back(@charge_down_per_tick);
+        f32_array.push_back(@morium_cost);
+    }
+
+    void BaseValueChanged() override//Called if a base value is changed.
+    {
+        basemodistore::BaseValueChanged();
+        print("activatable base value changed");
+    }
+
+
     bool Tick()
     {
-        ticks_since_created++;
+        if(!basemodistore::Tick()){ return false; }
         
         return true;
     }
-
-    void BaseValueChanged()
-    {
-        print("activatable base value changed");
-        RefreshPassiveModifers();
-    }
-    
-    void RefreshPassiveModifers()
-    {
-        for(u16 i = 0; i < passive_modifiers.size(); i++)
-        {
-            passive_modifiers[i].PassiveTick(@f32_array);
-        }
-    }
-    void RefreshActiveModifers()
-    {
-
-    }
-
-    array<DefaultModifier@> passive_modifiers;//If the modifier has passive changes
-    array<DefaultModifier@> active_modifiers;//If the modifer has active changes
-    //A single modifer can be in both the passive and active modifer array, provided they have both passive and active changes.
-
-    u32 ticks_since_created;
 
     Modif32@ rarity = Modif32("rarity", Undefined);//Should be an enum.
 
@@ -220,10 +305,18 @@ class weapon : activatable
     //See SYNTHETIK for how jamming works
 
 
-    bool Init() override
+    void weapon()
     {
-        if(!activatable::Init()) { return false; }
-        u16 i = 0;
+        Init();
+
+        
+        bool_array.reserve(10);
+        f32_array.reserve(20);
+        setActivatableModiVars();
+        setWeaponModiVars();
+
+
+        AfterInit();
 
         reload_sfx = "Reload.ogg";
         shot_sfx = "AssaultFire.ogg";

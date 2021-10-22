@@ -29,12 +29,10 @@ funcdef void BASE_VALUE_CHANGED();
 
 enum HowToModify
 {
-    BeforeSet,//Set the value before the multiplier takes effect
+    BeforeSub,//Set the value before the multiplier takes effect
     BeforeAdd,//Add to the value before the multiplier takes effect
-    AfterSet,//Set the value after the multiplier takes effect
+    AfterSub,//Set the value after the multiplier takes effect
     AfterAdd,//Add to the value after the multiplier takes effect
-    Sub,//Subtract the value
-    Mult,//Multiply the value
     AddMult,//Multiply the value along with other ModiHow's.
     SubMult//AddMult but subtraction
 }
@@ -43,10 +41,12 @@ class ModiHow//For modifying ModiVars
 {
     ModiHow(string _name, f32 _by_what, u8 _how)
     {
+        name = _name;
         name_hash = _name.getHash();
         by_what = _by_what;
         how = _how;
     }
+    string name;//Maybe remove this for performance reasons later?
     int name_hash;//Name of ModiVar to modify
     f32 by_what;
     u8 how;
@@ -111,7 +111,7 @@ class Modif32 : ModiBase
         }
         else//get_base is not true, return the (current value + before add) multiplied by the multiplier value, then the add value afterwards.
         {
-            return (value[0] + value[2]) * value[3] + value[4];
+            return (value[0] + value[2]) * value[3] + value[4];//Don't do this unless any of the values changed for optimization purposes. TODO numan
         }
     }//If it makes it easier, think of the current value as a temp value, and the base value as the default value.
 
