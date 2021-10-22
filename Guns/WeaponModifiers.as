@@ -50,6 +50,11 @@ class DefaultModifier
 
     void PassiveTick(array<IModiVar@>@ modi_array)
     {
+        
+    }
+
+    void ModiHowPassiveTick(array<IModiVar@>@ modi_array)
+    {
         for(u16 i = 0; i < modify_how.size(); i++)//For each position in the modify_how array
         {
             u16 modi_pos = getModiVarPos(modi_array, modify_how[i].name_hash);//Find the var this modify_how relates to
@@ -61,13 +66,21 @@ class DefaultModifier
             {
                 modi_array[modi_pos].setValue(modify_how[i].by_what, false);//Set the current value to the modify_how.
             }
-            else if(modify_how[i].how == Add)
+            else if(modify_how[i].how == BeforeAdd)
             {
-                modi_array[modi_pos].setValue(base_value + modify_how[i].by_what, false);//Set the current value to the base_value + modify_how.
+                
             }
-            else if(modify_how[i].how == Sub)
+            else if(modify_how[i].how == BeforeSub)
             {
-                modi_array[modi_pos].setValue(base_value - modify_how[i].by_what, false);//Set the current value to the base_value - modify_how.
+                
+            }
+            else if(modify_how[i].how == AfterAdd)
+            {
+                
+            }
+            else if(modify_how[i].how == AfterSub)
+            {
+                
             }
             else if(modify_how[i].how == Mult)
             {
@@ -87,6 +100,7 @@ class DefaultModifier
             }
         }
     }
+
 }
 
 
@@ -100,7 +114,7 @@ class ExampleModifier : DefaultModifier
         Init();
         modifier_type = PassiveAndActive;
 
-        addModifier("morium_cost", 1.0f, Add);//Add 1 to the cost
+        addModifier("morium_cost", 1.0f, AfterAdd);//Add 1 to the cost
         addModifier("morium_cost", 1.0f, AddMult);//Add 1.0f to what the end result will be multiplied by.
 
     }
@@ -135,7 +149,7 @@ class ExampleModifier2 : DefaultModifier
         Init();
         modifier_type = Passive;
 
-        addModifier("morium_cost", 1.0f, Add);
+        addModifier("morium_cost", 1.0f, AfterAdd);
     }
 
     //Nothing more is required.

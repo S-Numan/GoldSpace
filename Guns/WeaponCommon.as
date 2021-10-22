@@ -58,6 +58,15 @@ enum WeaponTypes
     WeaponTypeCount
 }
 
+enum DamageTypes
+{
+    Sharp = 1,
+    Blunt,
+    Heat,
+
+    DamageTypeCount
+}
+
 class activatable
 {
     bool Init()
@@ -87,6 +96,12 @@ class activatable
         f32_array.push_back(@morium_cost);
 
 
+        u16 i;
+
+        for(i = 0; i < bool_array.size(); i++)
+        {
+            bool_array.setBaseValueChangedFunc(@BASE_VALUE_CHANGED(BaseValueChanged));
+        }
 
         return true;
     }
@@ -150,25 +165,25 @@ class activatable
 
     u32 ticks_since_created;
 
-    Modif32@ rarity = Modif32(@BASE_VALUE_CHANGED(BaseValueChanged), "rarity", Undefined);//Should be an enum.
+    Modif32@ rarity = Modif32("rarity", Undefined);//Should be an enum.
 
-    Modif32@ knockback = Modif32(@BASE_VALUE_CHANGED(BaseValueChanged), "knockback", 0.0f);//pushes you around when activated, specifically it pushes you away from the direction your mouse is aiming.
-
-
-    Modibool@ full_auto = Modibool(@BASE_VALUE_CHANGED(BaseValueChanged), "full_auto", false);//false means semi-auto. true means you can hold the button to keep automatically activating it.
-
-    Modibool@ use_on_release = Modibool(@BASE_VALUE_CHANGED(BaseValueChanged), "use_on_release", false);//When this is false, it is default behavior. This activatable gets used on press. When this is true, the weapon only gets used on release.
-
-    Modibool@ remove_on_empty = Modibool(@BASE_VALUE_CHANGED(BaseValueChanged), "remove_on_empty", false);//Kills this when no more use uses are left
+    Modif32@ knockback = Modif32("knockback", 0.0f);//pushes you around when activated, specifically it pushes you away from the direction your mouse is aiming.
 
 
-    Modif32 use_afterdelay = Modif32(@BASE_VALUE_CHANGED(BaseValueChanged), "use_afterdelay", 0.0f);//basically rate of fire. How frequently can this be used? This many ticks before it can be reused.
+    Modibool@ full_auto = Modibool("full_auto", false);//false means semi-auto. true means you can hold the button to keep automatically activating it.
 
-    Modif32 use_delay = Modif32(@BASE_VALUE_CHANGED(BaseValueChanged), "use_delay", 0.0f);//If this is 30.0f, it would take 30 ticks after pressing the use button for this activatable to be used.
+    Modibool@ use_on_release = Modibool("use_on_release", false);//When this is false, it is default behavior. This activatable gets used on press. When this is true, the weapon only gets used on release.
+
+    Modibool@ remove_on_empty = Modibool("remove_on_empty", false);//Kills this when no more use uses are left
+
+
+    Modif32 use_afterdelay = Modif32("use_afterdelay", 0.0f);//basically rate of fire. How frequently can this be used? This many ticks before it can be reused.
+
+    Modif32 use_delay = Modif32("use_delay", 0.0f);//If this is 30.0f, it would take 30 ticks after pressing the use button for this activatable to be used.
     //After this activatable is "used", this intercepts the use and delays it is designed to do by the amount of ticks specified. Further presses of the use button while this activatable is delayed will do nothing.
 
 
-    Modif32 max_use_count = Modif32(@BASE_VALUE_CHANGED(BaseValueChanged), "max_use_count", 1.0f);//Max amount of times this can be used
+    Modif32 max_use_count = Modif32("max_use_count", 1.0f);//Max amount of times this can be used
 
     private f32 use_count_left;
     f32 getUseCountLeft()
@@ -180,11 +195,11 @@ class activatable
         use_count_left = value;
     }
 
-    Modif32 charge_up_time = Modif32(@BASE_VALUE_CHANGED(BaseValueChanged), "charge_up_time", 0.0f);//Time the player must be holding the use button to activate a use of this weapon. Think spinup time for a minigun.
+    Modif32 charge_up_time = Modif32("charge_up_time", 0.0f);//Time the player must be holding the use button to activate a use of this weapon. Think spinup time for a minigun.
 
-    Modif32 charge_down_per_tick = Modif32(@BASE_VALUE_CHANGED(BaseValueChanged), "charge_down_per_tick", 0.0f);//Amount the float above charge_up_time is subtracted by every tick.
+    Modif32 charge_down_per_tick = Modif32("charge_down_per_tick", 0.0f);//Amount the float above charge_up_time is subtracted by every tick.
 
-    Modif32 morium_cost = Modif32(@BASE_VALUE_CHANGED(BaseValueChanged), "morium_cost", 0.0f);//Morium cost per use when creating ammo for the activatable. a cost below 0 makes this activatable not rechargable
+    Modif32 morium_cost = Modif32("morium_cost", 0.0f);//Morium cost per use when creating ammo for the activatable. a cost below 0 makes this activatable not rechargable
     
     
 
@@ -197,6 +212,14 @@ class activatable
 
 class weapon : activatable
 {
+
+    //Jam chance
+    //Peanut butter cha- . No
+    //Jam size
+    //Jam unjam per reload press
+    //See SYNTHETIK for how jamming works
+
+
     bool Init() override
     {
         if(!activatable::Init()) { return false; }
@@ -515,6 +538,8 @@ class GunProjectile
         float knockback;//How much the projectile pushes a target back upon hitting.
         
         float pierce_count;//Amount of times the projectile can pierce enemies without dying. default 0
+
+        u8 damage_type;//See damage type enum.
 
     //
     //HIT EFFECTS
