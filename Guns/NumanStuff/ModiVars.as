@@ -204,5 +204,36 @@ class Modibool : ModiBase
             value[0] = _value;
         }
     }
+
+
+
+    bool get_opIndex(int idx) const
+    {
+        if(idx == 0)//If the index is the current value
+        {
+            return getValue();//Get the current value
+        }
+        //Otherwise
+        return value[idx];//Return the desired value
+    }
+    void set_opIndex(int idx, bool _value) 
+    {
+        if(idx == CurrentValue)//If the index is the current value
+        {
+            setValue(_value, false);
+            return;
+        }
+        if(idx == BaseValue)//If the index is the base value
+        {
+            setValue(_value);
+            return;
+        }
+        if(idx > BaseValue)//Index is something else
+        {
+            Nu::Warning("Modibool does not have multiplier values or add values");
+            return;
+        }
+        
+    }
     
 }

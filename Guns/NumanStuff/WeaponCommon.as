@@ -106,7 +106,7 @@ namespace It
         }
 
         array<Modif32@>@ f32_array;
-        u16 getModif32Point(string _name)
+        u16 getModif32Point(string _name)//TODO make a hash method for this too.
         {
             int _name_hash = _name.getHash();
             for(u16 i = 0; i < f32_array.size(); i++)
@@ -210,6 +210,10 @@ namespace It
     //In order: this, params.
     funcdef void USE_CALLBACK(activatable@, CBitStream@);
 
+    //terminology
+        //USE                   When the user presses the button to use it once.
+        //SHOT                  Single activation of the gun. (can happen several times from a single USE)
+        //PROJECTILE            Projectiles from the single SHOT of the gun. (weapon only)
     class activatable : basemodistore 
     {
         activatable()
@@ -230,24 +234,33 @@ namespace It
             basemodistore::Init();
 
             use_func = @null;
+            queued_shots = 0;
+            use_afterdelay_left = 0;
+            use_delay_left = 0;
         }
 
         void setModiVars()
         {
-            bool_array.push_back(@use_on_release);
-            bool_array.push_back(@remove_on_empty);
-        
-            f32_array.push_back(@using_mode);
-            f32_array.push_back(@knockback);
-            f32_array.push_back(@rarity);
+            //USE how
             f32_array.push_back(@use_afterdelay);
             f32_array.push_back(@use_delay);
-            f32_array.push_back(@charge_up_time);
-            f32_array.push_back(@charge_down_per_tick);
-            f32_array.push_back(@morium_cost);
+        
+            f32_array.push_back(@max_ammo_count);
+            ammo_count_left = max_ammo_count[CurrentValue];
 
-            f32_array.push_back(@max_use_count);
-            use_count_left = max_use_count[CurrentValue];
+            bool_array.push_back(@use_on_release);
+            f32_array.push_back(@using_mode);
+
+
+            //Shots
+            f32_array.push_back(@ammo_per_shot);
+            f32_array.push_back(@knockback_per_shot);
+            f32_array.push_back(@shots_per_use);
+            f32_array.push_back(@ticks_between_shots);
+
+            //MISC
+            bool_array.push_back(@remove_on_empty);
+            f32_array.push_back(@morium_cost);
         }
 
         void BaseValueChanged() override//Called if a base value is changed.
@@ -257,12 +270,154 @@ namespace It
         }
 
 
-        bool Tick()
+        bool Tick(CControls@ controls)
         {
             if(!basemodistore::Tick()){ return false; }
+
+            DelayLogic();
+
+
+            UseLogic(controls);
+
             
             return true;
         }
+
+        void DelayLogic()
+        {
+            if(use_afterdelay_left > 0)
+            {
+                use_afterdelay_left -= 1.0f;
+                if(use_afterdelay_left < 0.0f){ use_afterdelay_left = 0.0f; }
+            }
+            if(use_delay_left > 0)
+            {
+                use_delay_left -= 1.0f;
+                if(use_delay_left < 0.0f){ use_delay_left = 0.0f; }
+                
+                if(use_delay_left == 0.0f)
+                {
+                    UseOnce();
+                }
+            }
+        }
+
+        void UseLogic(CControls@ controls)
+        {
+            //Gather variables
+            //bool left_button = controls.isKeyPressed(KEY_LBUTTON);
+            //bool left_button_release = controls.isKeyJustReleased(KEY_LBUTTON);
+            //bool left_button_just = controls.isKeyJustPressed(KEY_LBUTTON);
+
+            //Do use logic
+            if(CanUseOnce(controls))
+            {
+                if(use_delay[CurrentValue] > 0.0f)//Does use delay exist?
+                {
+                    use_delay_left = use_delay[CurrentValue];//Set use delay
+                }
+                else//Regular logic
+                {
+                    UseOnce();
+                }
+            }
+
+
+            //Do shot logic
+            u8 can_shoot_reason = CanShootOnce();
+            if(can_shoot_reason == 1)//No queued up shots
+            {
+                
+            }
+            else if(can_shoot_reason == 0)//Can shoot
+            {
+                ShootOnce();
+            }
+            else if(can_shoot_reason == 2)//Out of ammo
+            {
+                queued_shots = 0;//Remove all queued up shots.
+                //TODO Play out of ammo sfx
+            }
+        }
+
+        //
+        //Can I?
+        //
+
+        //Shot
+        //
+        
+        //Reason
+        //0 == can shoot
+        //1 == no queued shots
+        //2 == not enough ammo 
+        u8 CanShootOnce()
+        {
+            if(queued_shots == 0)
+            {
+                return 1;
+            }
+            if(ammo_count_left - ammo_per_shot[CurrentValue] < 0.0f)//If there is not enough ammo for another shot
+            {
+                return 2;
+            }
+            return 0;
+        }
+
+        //
+        //Shot
+
+        bool CanUseOnce(CControls@ controls)
+        {
+            if(use_afterdelay_left == 0.0f && use_delay_left == 0.0f)//The afterdelay and delay is over.
+            {
+                return CanUsingMode(controls);
+            }
+            return false;
+        }
+        bool CanUsingMode(CControls@ controls)
+        {
+            if(using_mode[CurrentValue] == 1)//Is full auto?
+            {
+                return CanFullAuto(controls);
+            }
+            else if(using_mode[CurrentValue] == 0)//Is semi-auto?
+            {
+                return CanSemiAuto(controls);
+            }
+            else
+            {
+                Nu::Warning("Use mode not supported");
+                return false;
+            }
+        }
+        //TODO, use send a keycode too so other buttons than left mouse button can be used.
+        bool CanFullAuto(CControls@ controls)
+        {
+            return CanTrigger(controls.isKeyPressed(KEY_LBUTTON), controls.isKeyJustReleased(KEY_LBUTTON));
+        }
+        bool CanSemiAuto(CControls@ controls)
+        {
+            return CanTrigger(controls.isKeyJustPressed(KEY_LBUTTON), controls.isKeyJustReleased(KEY_LBUTTON));
+        }
+        bool CanTrigger(bool button_no_release, bool button_release)
+        {
+            if(!use_on_release[CurrentValue])//No use on release?
+            {
+                return button_no_release;//If button
+            }
+            else//Use on release
+            {
+                return button_release;//If button release
+            }
+        }
+
+
+        //
+        //Can I?
+        //
+
+
 
         private USE_CALLBACK@ use_func;//This function gets called when this item is used
         void addUseListener(USE_CALLBACK@ value)
@@ -271,61 +426,74 @@ namespace It
         }
         void UseOnce()
         {
+            queued_shots += shots_per_use[CurrentValue];//Queue up a shot
+            use_afterdelay_left = use_afterdelay[CurrentValue];
+        }
+        void ShootOnce()
+        {
             if(use_func != @null)//If the function to call exists
             {
                 CBitStream@ _params;
                 use_func(@this, @_params);//Call it
+                //TODO Apply knockback per shot somehow
             }
             else
             {
                 Nu::Error("failure to call function");
-            } 
+            }
+            ammo_count_left -= ammo_per_shot[CurrentValue];
+            if(ammo_count_left < 0.0f)
+            {
+                Nu::Warning("ammo count went below 0, something somewhere somehow is wrong. Good luck.");
+            }
         }
 
+        Modif32@ using_mode = Modif32("using_mode", 0);//0 means semi-auto. 1 means you can hold the button to keep automatically shooting when able (full auto). 2 is for burst fire. 3 and beyond are extras for specific weapon stuff.
 
-        Modif32@ rarity = Modif32("rarity", Undefined);//Should be an enum.
-
-        Modif32@ knockback = Modif32("knockback", 0.0f);//pushes you around when activated, specifically it pushes you away from the direction your mouse is aiming.
+        Modibool@ use_on_release = Modibool("use_on_release", false);//When this is false, it is default behavior. This activatable gets used on press. When this is true, this only gets used on release.
 
 
-        Modif32@ using_mode = Modif32("using_mode", 0);//0 means semi-auto. 1 means you can hold the button to keep automatically activating it (full auto). 2 and beyond are extras for specific weapon stuff.
-
-        Modibool@ use_on_release = Modibool("use_on_release", false);//When this is false, it is default behavior. This activatable gets used on press. When this is true, the weapon only gets used on release.
 
         Modibool@ remove_on_empty = Modibool("remove_on_empty", true);//Kills this when no more use uses are left
 
-
         Modif32@ use_afterdelay = Modif32("use_afterdelay", 0.0f);//basically rate of fire. How frequently can this be used? This many ticks before it can be reused.
+
+        f32 use_afterdelay_left;
+
 
         Modif32@ use_delay = Modif32("use_delay", 0.0f);//If this is 30.0f, it would take 30 ticks after pressing the use button for this activatable to be used.
         //After this activatable is "used", this intercepts the use and delays it is designed to do by the amount of ticks specified. Further presses of the use button while this activatable is delayed will do nothing.
 
+        f32 use_delay_left;
 
-        Modif32@ max_use_count = Modif32("max_use_count", 1.0f);//Max amount of times this can be used
 
-        private f32 use_count_left;
-        f32 getUseCountLeft()
-        {
-            return use_count_left;
-        }
-        void setUseCountLeft(f32 value)
-        {
-            use_count_left = value;
-        }
+        Modif32@ max_ammo_count = Modif32("max_ammo_count", 1.0f);//Max amount of times this can be used
 
-        Modif32@ charge_up_time = Modif32("charge_up_time", 0.0f);//Time the player must be holding the use button to activate a use of this weapon. Think spinup time for a minigun.
-
-        Modif32@ charge_down_per_tick = Modif32("charge_down_per_tick", 0.0f);//Amount the float above charge_up_time is subtracted by every tick.
+        f32 ammo_count_left;
 
         Modif32@ morium_cost = Modif32("morium_cost", 0.0f);//Morium cost per use when creating ammo for the activatable. a cost below 0 makes this activatable not rechargable
         
         
+        //SHOTS
+            //EFFECTS
+            //
+                Modif32@ ammo_per_shot = Modif32("ammo_per_shot", 1.0f);//Uses taken out per shot
 
+                Modif32@ knockback_per_shot = Modif32("knockback_per_shot", 0.0f);//Amount the user is knocked back upon a shot going off.
+            //
+            //EFFECTS
+
+
+            //AMOUNT
+            //
+                float queued_shots;//Value that holds shots waiting to be activated. Think burst fire weapons. You cannot fire(use) when there are still shots queued up.
+                Modif32@ shots_per_use = Modif32("shots_per_use", 1.0f);//Amount of shots per use.
+                Modif32@ ticks_between_shots = Modif32("ticks_between_shots", 0.0f);//Only relevant if the stat above is more than 0
+            //
+            //AMOUNT
+        //SHOTS
         
 
-
-
-        //u16 times_activated_on_use;//usually 1, but can be more if the activatable is a shotgun or something. Or something more unique. Dunno.
     }
 
 
@@ -343,15 +511,27 @@ namespace It
 
             AfterInit();
         }
+        void Init()
+        {
+            activatable::Init();
+
+
+        }
 
         void setModiVars() override
         {
             activatable::setModiVars();
+            
 
-            f32_array.push_back(@shot_use_count);
-            f32_array.push_back(@knockback_per_shot);
-            f32_array.push_back(@shots_per_use);
-            f32_array.push_back(@ticks_between_shots);
+            //Charging
+            f32_array.push_back(@charge_up_time);
+            f32_array.push_back(@charge_down_per_tick);
+
+            //USE effects
+            f32_array.push_back(@knockback_per_use);
+            f32_array.push_back(@rarity);
+
+            //Shots
             f32_array.push_back(@random_shot_spread);
             f32_array.push_back(@min_shot_spread);
             f32_array.push_back(@max_shot_spread);
@@ -374,26 +554,19 @@ namespace It
         }
 
 
+        Modif32@ rarity = Modif32("rarity", Undefined);//Should be an enum.
+
+        Modif32@ knockback_per_use = Modif32("knockback_per_use", 0.0f);//pushes you around when activated, specifically it pushes you away from the direction your mouse is aiming.
+
+
+
+
+        Modif32@ charge_up_time = Modif32("charge_up_time", 0.0f);//Time the player must be holding the use button to activate a use of this. Think spinup time for a minigun.
+
+        Modif32@ charge_down_per_tick = Modif32("charge_down_per_tick", 0.0f);//Amount the float above charge_up_time is subtracted by every tick.
 
         //SHOTS
         //
-            //EFFECTS
-            //
-                Modif32@ shot_use_count = Modif32("shot_use_count", 1.0f);//Uses taken out per shot
-
-                Modif32@ knockback_per_shot = Modif32("knockback_per_shot", 0.0f);//Amount the user is knocked back upon a shot going off.
-            //
-            //EFFECTS
-
-
-            //AMOUNT
-            //
-                float queued_shots;//Value that holds shots waiting to be activated. Think burst fire weapons. You cannot fire(use) when there are still shots queued up.
-                Modif32@ shots_per_use = Modif32("shots_per_use", 1.0f);//Amount of shots per use.//See using_mode
-                Modif32@ ticks_between_shots = Modif32("ticks_between_shots", 0.0f);//Only relevant if the stat above is more than 0
-            //
-            //AMOUNT
-
             //AIMING
             //
                 Modif32@ random_shot_spread = Modif32("random_shot_spread", 0.0f);//Value that changes direction of where the shot is aimed by picking a value between 0 and this variable. Half chance to invert the value. Applies this to the direction the shot would be going.
@@ -435,7 +608,7 @@ namespace It
 
             
             bool_array.reserve(10);
-            f32_array.reserve(20);
+            f32_array.reserve(30);
             setModiVars();
 
 
@@ -548,12 +721,6 @@ namespace It
             equip_time[1] = value;
             BaseValueChanged();
         }
-
-
-        //terminology
-        //USE                   When the user presses the button to use the gun once.
-        //SHOT                  Single fire of the gun.
-        //PROJECTILE            Projectiles from the single SHOT of the gun.
 
 
         //RELOADING
