@@ -8,7 +8,7 @@ enum ModifierTypes
     PassiveAndActive
 }
 
-u16 getModiVarPos(array<ModiBase@>@ modi_array, int name_hash)
+u16 getModiVarPos(array<Modif32@>@ modi_array, int name_hash)
 {
     for(u16 i = 0; i < modi_array.size(); i++)
     {
@@ -56,72 +56,66 @@ class DefaultModifier
         modify_how.push_back(@ModiHow(_name, _by_what, _how));
     }
 
-    void ActiveTick(array<ModiBase@>@ modi_array)//Called every tick
+    void ActiveTick(array<Modif32@>@ modi_array)//Called every tick
     {
         
     }
 
-    void PassiveTick(array<ModiBase@>@ modi_array)//Called onInit
+    void PassiveTick(array<Modif32@>@ modi_array)//Called onInit
     {
         ModiHowPassiveTick(modi_array);
     }
 
-    void AntiPassiveTick(array<ModiBase@>@ modi_array)//Called on removal
+    void AntiPassiveTick(array<Modif32@>@ modi_array)//Called on removal
     {
         ModiHowPassiveTick(modi_array, true);//Invert values
     }
 
-    void ModiHowPassiveTick(array<ModiBase@>@ modi_array, bool invert_values = false)
+    void ModiHowPassiveTick(array<Modif32@>@ modi_array, bool invert_values = false)
     {
         for(u16 i = 0; i < modify_how.size(); i++)//For each position in the modify_how array
         {
             u16 modi_pos = getModiVarPos(modi_array, modify_how[i].name_hash);//Find the var this modify_how relates to
             if(modi_pos == Nu::u16_max()) { Nu::Error("modify_how[i] did not relate to anything in the modi_pos array. modify_how name = " + modify_how[i].name); continue; }
 
-            f32 base_value = modi_array[modi_pos].getValue(true);//Get the base value.
+            //f32 base_value = modi_array[modi_pos][BaseValue];//Get the base value.
 
-            s8 _invert = 1;
-            if(invert_values)
+            s8 _invert = 1;//Create the value that multiplies the end result
+            if(invert_values)//If the goal is to invert the end result
             {
-                _invert = -1;
+                _invert = -1;//Commit.
             }
 
-            /*if(modify_how[i].how == Set)
+            if(modify_how[i].how == BeforeAdd)//If the goal is to add to the BeforeAdd.
             {
-                modi_array[modi_pos].setValue(modify_how[i].by_what * _invert, false);//Set the current value to the modify_how.
-            }*/
-            if(modify_how[i].how == BeforeAdd)
-            {
-                modi_array[modi_pos].addBeforeAdd(modify_how[i].by_what * _invert);
+                modi_array[modi_pos][BeforeAdd] = modi_array[modi_pos][BeforeAdd] + modify_how[i].by_what * _invert;//Add to it
             }
-            else if(modify_how[i].how == BeforeSub)
+            else if(modify_how[i].how == AddMult)//If the goal is to add to the AddMult
             {
-                modi_array[modi_pos].subBeforeAdd(modify_how[i].by_what * _invert);
+                modi_array[modi_pos][AddMult] = modi_array[modi_pos][AddMult] + modify_how[i].by_what * _invert;//Add to it
             }
-            else if(modify_how[i].how == AfterAdd)
+            else if(modify_how[i].how == AfterAdd)//If the goal is to add to the AfterAdd
             {
-                modi_array[modi_pos].addAfterAdd(modify_how[i].by_what * _invert);
-            }
-            else if(modify_how[i].how == AfterSub)
-            {
-                modi_array[modi_pos].subAfterAdd(modify_how[i].by_what * _invert);
-            }
-            /*else if(modify_how[i].how == Mult)
-            {
-
-            }*/
-            else if(modify_how[i].how == AddMult)
-            {
-                modi_array[modi_pos].addMult(modify_how[i].by_what * _invert);
-            }
-            else if(modify_how[i].how == SubMult)
-            {
-                modi_array[modi_pos].subMult(modify_how[i].by_what * _invert);
+                modi_array[modi_pos][AfterAdd] = modi_array[modi_pos][AfterAdd] + modify_how[i].by_what * _invert;//Add to it
+                //How does this work?
+                //modi_array[modi_pos] <- This specific ModiVar in the array. (fancy f32 variable)
+                //[AfterAdd] <- The "AfterAdd" within the ModiVar. (value that adds to the fancy f32 variable after the other two above (BeforeAdd & AddMult) have done so)
+                //= modi_array[modi_pos][AfterAdd] <- See the two lines above
+                //+ modify_how[i].by_what <- for this ModiHow in the array, add it's value to AfterAdd
+                //* _invert; <- invert the adding value if desired, this is generally only done when removing the modifier
             }
             else
             {
                 Nu::Error("Problemo. Too lazy to type out why.");
             }
+            /*if(modify_how[i].how == Set)
+            {
+                modi_array[modi_pos].setValue(modify_how[i].by_what * _invert, false);//Set the current value to the modify_how.
+            }*/
+            /*else if(modify_how[i].how == Mult)
+            {
+
+            }*/
         }
     }
 
@@ -145,7 +139,7 @@ class ExampleModifier : DefaultModifier
 
     }
 
-    void ActiveTick(array<ModiBase@>@ modi_array) override
+    void ActiveTick(array<Modif32@>@ modi_array) override
     {
         DefaultModifier::ActiveTick(@modi_array);
     
@@ -156,9 +150,9 @@ class ExampleModifier : DefaultModifier
         Random@ rnd = Random(getGameTime());//Random with seed
         float random_number = (rnd.Next() + rnd.NextFloat()) % 2;//Random number between 0 and 2 (float)
 
-        modi_array[modi_pos].subMult(random_number);//Subtract the multiplier by this number
+        modi_array[modi_pos][AddMult] = modi_array[modi_pos][AddMult] - random_number;//Subtract the multiplier by this number
     }
-    void PassiveTick(array<ModiBase@>@ modi_array) override //Called on creation
+    void PassiveTick(array<Modif32@>@ modi_array) override //Called on creation
     {
         DefaultModifier::PassiveTick(@modi_array);
     
@@ -166,7 +160,7 @@ class ExampleModifier : DefaultModifier
 
     }
 
-    void AntiPassiveTick(array<ModiBase@>@ modi_array) override //Called on removal
+    void AntiPassiveTick(array<Modif32@>@ modi_array) override //Called on removal
     {
         DefaultModifier::AntiPassiveTick(@modi_array);
     
