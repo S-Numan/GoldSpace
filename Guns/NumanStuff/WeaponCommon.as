@@ -145,7 +145,7 @@ namespace It
             {
                 if(all_modifiers[i].getModifierType() != Active)
                 {
-                    all_modifiers[i].PassiveTick(@f32_array);
+                    all_modifiers[i].PassiveTick();
                 }
             }
         }
@@ -155,7 +155,7 @@ namespace It
             {
                 if(all_modifiers[i].getModifierType() != Passive)
                 {
-                    all_modifiers[i].ActiveTick(@f32_array);
+                    all_modifiers[i].ActiveTick();
                 }
             }
         }*/
@@ -163,7 +163,7 @@ namespace It
 
         bool addModifier(DefaultModifier@ _modi)
         {
-            _modi.PassiveTick(@f32_array);
+            _modi.PassiveTick();
             
             all_modifiers.push_back(@_modi);
 
@@ -173,7 +173,7 @@ namespace It
         {
             if(_pos >= all_modifiers.size()) { Nu::Error("Reached out of bounds"); return false; }
 
-            all_modifiers[_pos].AntiPassiveTick(@f32_array);
+            all_modifiers[_pos].AntiPassiveTick();
             
             all_modifiers.removeAt(_pos);
 

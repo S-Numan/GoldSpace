@@ -23,8 +23,10 @@ u16 getModiVarPos(array<Modif32@>@ modi_array, int name_hash)
 
 class DefaultModifier
 {    
-    void Init()
+    void Init(array<Modif32@>@ _modi_array)
     {
+        @modi_array = @_modi_array;
+        
         modify_how = array<ModiHow@>();
     
         icon = "";
@@ -35,6 +37,8 @@ class DefaultModifier
     string icon;
     string name;
     int name_hash;
+
+    array<Modif32@>@ modi_array;
 
     void setName(string _name)
     {
@@ -56,22 +60,22 @@ class DefaultModifier
         modify_how.push_back(@ModiHow(_name, _by_what, _how));
     }
 
-    void ActiveTick(array<Modif32@>@ modi_array)//Called every tick
+    void ActiveTick()//Called every tick
     {
         
     }
 
-    void PassiveTick(array<Modif32@>@ modi_array)//Called onInit
+    void PassiveTick()//Called onInit
     {
-        ModiHowPassiveTick(modi_array);
+        ModiHowPassiveTick();
     }
 
-    void AntiPassiveTick(array<Modif32@>@ modi_array)//Called on removal
+    void AntiPassiveTick()//Called on removal
     {
-        ModiHowPassiveTick(modi_array, true);//Invert values
+        ModiHowPassiveTick(true);//Invert values
     }
 
-    void ModiHowPassiveTick(array<Modif32@>@ modi_array, bool invert_values = false)
+    void ModiHowPassiveTick(bool invert_values = false)
     {
         for(u16 i = 0; i < modify_how.size(); i++)//For each position in the modify_how array
         {
@@ -127,9 +131,9 @@ class DefaultModifier
 
 class ExampleModifier : DefaultModifier
 {
-    ExampleModifier()
+    ExampleModifier(array<Modif32@>@ modi_array)
     {
-        Init();
+        Init(@modi_array);
         modifier_type = PassiveAndActive;
         
         setName("example");
@@ -139,9 +143,9 @@ class ExampleModifier : DefaultModifier
 
     }
 
-    void ActiveTick(array<Modif32@>@ modi_array) override
+    void ActiveTick() override
     {
-        DefaultModifier::ActiveTick(@modi_array);
+        DefaultModifier::ActiveTick();
     
         //Do whatever logic you want to the array here.
 
@@ -152,17 +156,17 @@ class ExampleModifier : DefaultModifier
 
         modi_array[modi_pos][AddMult] = modi_array[modi_pos][AddMult] - random_number;//Subtract the multiplier by this number
     }
-    void PassiveTick(array<Modif32@>@ modi_array) override //Called on creation
+    void PassiveTick() override //Called on creation
     {
-        DefaultModifier::PassiveTick(@modi_array);
+        DefaultModifier::PassiveTick();
     
         //Do whatever logic you want to the array here.
 
     }
 
-    void AntiPassiveTick(array<Modif32@>@ modi_array) override //Called on removal
+    void AntiPassiveTick() override //Called on removal
     {
-        DefaultModifier::AntiPassiveTick(@modi_array);
+        DefaultModifier::AntiPassiveTick();
     
         //Do whatever logic you want to the array here.
     }
@@ -171,9 +175,9 @@ class ExampleModifier : DefaultModifier
 
 class ExampleModifier2 : DefaultModifier
 {
-    ExampleModifier2()
+    ExampleModifier2(array<Modif32@>@ modi_array)
     {
-        Init();
+        Init(@modi_array);
         modifier_type = Passive;
 
         setName("example2");
