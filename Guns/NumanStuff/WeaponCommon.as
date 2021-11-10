@@ -7,7 +7,7 @@
 
 //Change clip to mag. It's shorter and more accurate based on the logic.
 
-namespace It
+namespace it
 {
 
     /*::Weapon stats::
@@ -160,6 +160,37 @@ namespace It
             }
         }*/
 
+        void DebugModiVars(bool full_data = false)
+        {
+            u16 i;
+            print("f32 vars\n");
+            for(i = 0; i < f32_array.size(); i++)
+            {
+                print("Name = " + f32_array[i].getName());
+                print("BaseValue = " + f32_array[i][BaseValue]);
+                print("CurrentValue = " + f32_array[i][CurrentValue]);
+                if(full_data)
+                {
+                    print("BeforeAdd = " + f32_array[i][BeforeAdd]);
+                    print("MultValue = " + f32_array[i][MultValue]);
+                    print("AfterAdd = " + f32_array[i][AfterAdd]);
+                }
+                print("");
+            }
+            print("bool vars\n");
+            for(i = 0; i < bool_array.size(); i++)
+            {
+                print("Name = " + bool_array[i].getName());
+                print("BaseValue = " + bool_array[i][BaseValue]);
+                print("CurrentValue = " + bool_array[i][CurrentValue]);
+                if(full_data)
+                {
+
+                }
+                print("");
+            }
+        }
+
 
         bool addModifier(DefaultModifier@ _modi)
         {
@@ -208,7 +239,11 @@ namespace It
     }
 
     //In order: this, params.
-    funcdef void USE_CALLBACK(activatable@, CBitStream@);
+    //funcdef void USE_CALLBACK(activatable@, CBitStream@);
+    //While I would prefer to send the handle to the class itself, kag doesn't let me do casting to upper/lower versions of the class.
+
+    //In order: params.
+    funcdef void USE_CALLBACK(CBitStream@);
 
     //terminology
         //USE                   When the user presses the button to use it once.
@@ -235,18 +270,25 @@ namespace It
 
             use_func = @null;
             queued_shots = 0;
+            shot_afterdelay_left = 0;
             use_afterdelay_left = 0;
             use_delay_left = 0;
+            ammo_count_left = 0;
+            tag_array = array<int>();
+            tag_array.reserve(5);
+        
+            shot_sfx = "";
+            empty_total_sfx = "";
+            empty_total_ongoing_sfx = "";
         }
 
         void setModiVars()
         {
             //USE how
             f32_array.push_back(@use_afterdelay);
-            f32_array.push_back(@use_delay);
+            //f32_array.push_back(@use_delay);//Disabled for being confusing to program.
         
             f32_array.push_back(@max_ammo_count);
-            ammo_count_left = max_ammo_count[CurrentValue];
 
             bool_array.push_back(@use_on_release);
             f32_array.push_back(@using_mode);
@@ -256,10 +298,13 @@ namespace It
             f32_array.push_back(@ammo_per_shot);
             f32_array.push_back(@knockback_per_shot);
             f32_array.push_back(@shots_per_use);
-            f32_array.push_back(@ticks_between_shots);
+            f32_array.push_back(@shot_afterdelay);
 
             //MISC
             bool_array.push_back(@remove_on_empty);
+            bool_array.push_back(@use_with_queued_shots);
+            bool_array.push_back(@use_with_shot_afterdelay);
+            bool_array.push_back(@no_ammo_no_shots);
             f32_array.push_back(@morium_cost);
         }
 
@@ -269,6 +314,62 @@ namespace It
             print("activatable base value changed");
         }
 
+        void DebugVars()
+        {
+            print("queued_shots = " + queued_shots);
+            print("shot_afterdelay_left = " + shot_afterdelay_left);
+            print("use_afterdelay_left = " + use_afterdelay_left);
+            print("use_delay_left = " + use_delay_left);
+            print("ammo_count_left = " + ammo_count_left);
+        }
+
+        array<int> tag_array;
+
+        bool hasTag(string tag_string)
+        {
+            return hasTag(tag_string.getHash());
+        }
+
+        bool hasTag(int tag_hash)
+        {
+            for(u16 i = 0; i < tag_array.size(); i++)
+            {
+                if(tag_array[i] == tag_hash)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        void addTag(int tag_hash)
+        {
+            if(tag_hash == 0)
+            {
+                Nu::Error("Tried to add tag hash with a value of 0");
+                return;
+            }
+            tag_array.push_back(tag_hash);
+        }
+
+        //Returns if the tag was succesfully removed
+        bool removeTag(int tag_hash)
+        {
+            for(u16 i = 0; i < tag_array.size(); i++)//For every tag
+            {
+                if(tag_array[i] == tag_hash)//If it is equal to the provided tag
+                {
+                    tag_array.removeAt(i);//Remove it
+                    return true;//Success
+                }
+            }
+            return false;//No tag found to remove
+        }
+
+
+        
+
 
         bool Tick(CControls@ controls)
         {
@@ -277,7 +378,7 @@ namespace It
             DelayLogic();
 
 
-            UseLogic(controls);
+            UsingLogic(controls);
 
             
             return true;
@@ -290,36 +391,45 @@ namespace It
                 use_afterdelay_left -= 1.0f;
                 if(use_afterdelay_left < 0.0f){ use_afterdelay_left = 0.0f; }
             }
-            if(use_delay_left > 0)
+            /*if(use_delay_left > 0)
             {
                 use_delay_left -= 1.0f;
                 if(use_delay_left < 0.0f){ use_delay_left = 0.0f; }
-                
-                if(use_delay_left == 0.0f)
-                {
-                    UseOnce();
-                }
+            }*/
+            if(shot_afterdelay_left > 0)
+            {
+                shot_afterdelay_left -= 1.0f;
+                if(shot_afterdelay_left < 0.0f){ shot_afterdelay_left = 0.0f; }
             }
         }
 
-        void UseLogic(CControls@ controls)
+        void UsingLogic(CControls@ controls)
         {
             //Gather variables
             //bool left_button = controls.isKeyPressed(KEY_LBUTTON);
             //bool left_button_release = controls.isKeyJustReleased(KEY_LBUTTON);
             //bool left_button_just = controls.isKeyJustPressed(KEY_LBUTTON);
 
-            //Do use logic
-            if(CanUseOnce(controls))
+            /*if()//Does use delay exist?
             {
-                if(use_delay[CurrentValue] > 0.0f)//Does use delay exist?
-                {
-                    use_delay_left = use_delay[CurrentValue];//Set use delay
-                }
-                else//Regular logic
-                {
-                    UseOnce();
-                }
+                use_delay_left = use_delay[CurrentValue];//Set use delay
+            }
+            if(use_delay[CurrentValue] > 0.0f && use_delay != 0)
+            {
+
+            }*/
+
+            u8 can_use_reason = CanUseOnce(controls);
+
+            if(can_use_reason == 0)//Use logic
+            {
+                UseOnce();
+            }
+            else if(can_use_reason == 4//no_ammo_no_shots is true, and the current amount of shots plus the amount that would be added went past max ammo. There are no current queued shots
+            || can_use_reason == 7)//Or there is simply no ammo left
+            {
+                use_afterdelay_left = use_afterdelay[CurrentValue];//Add the delay like this was used.
+                if(empty_total_sfx != "") { Sound::Play(empty_total_sfx); }//Play attempted use sound//TODO, make sfx better. Have position, volume, pitch as variables. Every client should hear the shots.
             }
 
 
@@ -329,14 +439,19 @@ namespace It
             {
                 
             }
+            else if(can_shoot_reason == 2)//delay between shots
+            {
+
+            }
             else if(can_shoot_reason == 0)//Can shoot
             {
                 ShootOnce();
             }
-            else if(can_shoot_reason == 2)//Out of ammo
+            else if(can_shoot_reason == 5)//Out of ammo from ongoing queued up shots
             {
+                //TODO: have a bool that changes how this behaves. If the bool is true; it removes all queued shots. If the bool is false; it behaves like it was shooting normally, just nothing was triggered and no heat was generated.
                 queued_shots = 0;//Remove all queued up shots.
-                //TODO Play out of ammo sfx
+                if(empty_total_ongoing_sfx != "") { Sound::Play(empty_total_ongoing_sfx); }
             }
         }
 
@@ -350,16 +465,21 @@ namespace It
         //Reason
         //0 == can shoot
         //1 == no queued shots
-        //2 == not enough ammo 
+        //2 == delay between shots
+        //5 == out of ammo from ongoing queued up shots
         u8 CanShootOnce()
         {
             if(queued_shots == 0)
             {
                 return 1;
             }
-            if(ammo_count_left - ammo_per_shot[CurrentValue] < 0.0f)//If there is not enough ammo for another shot
+            if(shot_afterdelay_left > 0)
             {
                 return 2;
+            }
+            if(ammo_count_left - ammo_per_shot[CurrentValue] < 0.0f)//If there is not enough ammo for another shot
+            {
+                return 5;
             }
             return 0;
         }
@@ -367,15 +487,39 @@ namespace It
         //
         //Shot
 
-        bool CanUseOnce(CControls@ controls)
+        //Reason
+        //0 == can use
+        //1 == use afterdelay is not over
+        //2 == use delay is not over
+        //3 == there are queued shots, and this isn't supposed to be used while there are queued shots
+        //4 == no_ammo_no_shots is true, and the current amount of shots plus the amount that would be added went past max ammo. There are no current queued shots.
+        //5 == Use mode not supported
+        //6 == button not pressed
+        //7 == there is no ammo left
+        //8 == Same as 4, but there are queued shots.
+        //9 == shot afterdelay is not equal to 0 and use_with_shot_afterdelay is false
+
+        u8 CanUseOnce(CControls@ controls)
         {
-            if(use_afterdelay_left == 0.0f && use_delay_left == 0.0f)//The afterdelay and delay is over.
+            if(use_afterdelay_left != 0.0f)//If use afterdelay is not over
             {
-                return CanUsingMode(controls);
+                return 1;//Nope
             }
-            return false;
+            if(use_delay_left != 0.0f)//If use delay is not over
+            {
+                return 2;//Nay
+            }
+            if(use_with_queued_shots[CurrentValue] == false && queued_shots != 0)//If this isn't supposed to be used with queued shots, and there are queued shots
+            {
+                return 3;//Can't be used right now
+            }
+            if(use_with_shot_afterdelay[CurrentValue] == false && shot_afterdelay_left != 0)//If this isn't supposed to be used when shot_afterdelay_left is not equal to 0
+            {
+                return 9;//STAP
+            }
+            return CanUsingMode(controls);
         }
-        bool CanUsingMode(CControls@ controls)
+        u8 CanUsingMode(CControls@ controls)
         {
             if(using_mode[CurrentValue] == 1)//Is full auto?
             {
@@ -388,28 +532,55 @@ namespace It
             else
             {
                 Nu::Warning("Use mode not supported");
-                return false;
+                return 5;
             }
         }
         //TODO, use send a keycode too so other buttons than left mouse button can be used.
-        bool CanFullAuto(CControls@ controls)
+        u8 CanFullAuto(CControls@ controls)
         {
             return CanTrigger(controls.isKeyPressed(KEY_LBUTTON), controls.isKeyJustReleased(KEY_LBUTTON));
         }
-        bool CanSemiAuto(CControls@ controls)
+        u8 CanSemiAuto(CControls@ controls)
         {
             return CanTrigger(controls.isKeyJustPressed(KEY_LBUTTON), controls.isKeyJustReleased(KEY_LBUTTON));
         }
-        bool CanTrigger(bool button_no_release, bool button_release)
+        u8 CanTrigger(bool button_no_release, bool button_release)
         {
+            u8 return_value = 6;
             if(!use_on_release[CurrentValue])//No use on release?
             {
-                return button_no_release;//If button
+                if(button_no_release)//If button
+                {
+                    return_value = 0;//Yup
+                }
             }
             else//Use on release
             {
-                return button_release;//If button release
+                if(button_release)//If button release
+                {
+                    return_value = 0;//Indeed
+                }
             }
+            if(return_value == 0)//If this was going to return true
+            {
+                if(no_ammo_no_shots[CurrentValue] == true//and if no_ammo_no_shots is true
+                && queued_shots * ammo_per_shot[CurrentValue] + shots_per_use[CurrentValue] * ammo_per_shot[CurrentValue] > ammo_count_left)//and if the current amount of shots plus the amount that would be added would go past max ammo.
+                {
+                    if(queued_shots != 0)//Queued shots still going on?
+                    {
+                        return 8;//Bye
+                    }
+                    else//No queued shots
+                    {
+                        return 4;//Cease thy use!
+                    }
+                }
+                if(ammo_count_left == 0.0f)//And there was no ammo left
+                {
+                    return 7;//Nada
+                }
+            }
+            return return_value;
         }
 
 
@@ -431,27 +602,39 @@ namespace It
         }
         void ShootOnce()
         {
+            ammo_count_left -= ammo_per_shot[CurrentValue];
+            queued_shots -= 1;
+
+            if(shot_afterdelay_left != 0)
+            {
+                Nu::Warning("shot_afterdelay_left was not 0 when shooting, something somewhere somehow is wrong. Good luck.");
+            }
+            shot_afterdelay_left = shot_afterdelay[CurrentValue];
+            if(ammo_count_left < 0.0f)
+            {
+                Nu::Warning("ammo_count_left went below 0, something somewhere somehow is wrong. Good luck.");
+            }
+
             if(use_func != @null)//If the function to call exists
             {
                 CBitStream@ _params;
-                use_func(@this, @_params);//Call it
+                use_func(_params);//Call it
                 //TODO Apply knockback per shot somehow
             }
             else
             {
                 Nu::Error("failure to call function");
             }
-            ammo_count_left -= ammo_per_shot[CurrentValue];
-            if(ammo_count_left < 0.0f)
+
+            if(shot_sfx != "")
             {
-                Nu::Warning("ammo count went below 0, something somewhere somehow is wrong. Good luck.");
+                Sound::Play(shot_sfx);//TODO, make sfx better. Have position, volume, pitch as variables. Every client should hear the shots.
             }
         }
 
         Modif32@ using_mode = Modif32("using_mode", 0);//0 means semi-auto. 1 means you can hold the button to keep automatically shooting when able (full auto). 2 is for burst fire. 3 and beyond are extras for specific weapon stuff.
 
         Modibool@ use_on_release = Modibool("use_on_release", false);//When this is false, it is default behavior. This activatable gets used on press. When this is true, this only gets used on release.
-
 
 
         Modibool@ remove_on_empty = Modibool("remove_on_empty", true);//Kills this when no more use uses are left
@@ -488,10 +671,29 @@ namespace It
             //
                 float queued_shots;//Value that holds shots waiting to be activated. Think burst fire weapons. You cannot fire(use) when there are still shots queued up.
                 Modif32@ shots_per_use = Modif32("shots_per_use", 1.0f);//Amount of shots per use.
-                Modif32@ ticks_between_shots = Modif32("ticks_between_shots", 0.0f);//Only relevant if the stat above is more than 0
+                
+                Modibool@ use_with_queued_shots = Modibool("use_with_queued_shots", false);//When this is false, this cannot be used again until there are no more queued shots left. When this is true, you can continue using this and adding more queued shots.
+
+                Modibool@ use_with_shot_afterdelay = Modibool("use_with_shot_afterdelay", false);//When this is false, you cannot use the weapon when shot afterdelay is not 0. When this is true, you can queue up more shots with less care.
+
+                Modibool@ no_ammo_no_shots = Modibool("no_ammo_no_shots", true);//If this is true, using this wont setup queued shots if the amount of queued up shots left would pass ammo_count_left. If this is false, it will glady setup 3 shots even if there is only 2 ammo left.
+                
+                Modif32@ shot_afterdelay = Modif32("shot_afterdelay", 0.0f);//Only relevant if the stat above is more than 0
+                float shot_afterdelay_left;
             //
             //AMOUNT
         //SHOTS
+
+
+        //SFX
+
+            string shot_sfx;
+            
+            string empty_total_sfx;//When the gun has 0 ammo total but a use is attempted.
+
+            string empty_total_ongoing_sfx;//Out of ammo from ongoing queued up shots
+
+        //SFX
         
 
     }
@@ -615,11 +817,9 @@ namespace It
             AfterInit();
 
             reload_sfx = "Reload.ogg";
-            shot_sfx = "AssaultFire.ogg";
             projectile_sfx = "";
             equip_weapon_sfx = "";
             empty_clip_sfx = "";
-            empty_total_sfx = "";
             empty_clip_use_sfx = "";
             equip_weapon_sfx = "";
             flesh_hit_sfx = "ArrowHitFlesh.ogg";
@@ -805,7 +1005,7 @@ namespace It
             //
                 float queued_projectiles;//Value that holds projectiles waiting to escape from the gun. Think shotgun like weapons.
                 float projectiles_per_shot;//Amount of projectiles per shot.
-                float ticks_between_projectiles;//Only relevant if the stat above is more than 1
+                float projectile_afterdelay;//Only relevant if the stat above is more than 1. Delay in ticks between each projectile
             //
             //AMOUNT
 
@@ -832,11 +1032,7 @@ namespace It
         //
             string reload_sfx;
 
-            string shot_sfx;
-
             string empty_clip_sfx;//When the gun has 0 ammo in the clip.
-
-            string empty_total_sfx;//When the gun has 0 ammo total.
 
             string empty_clip_use_sfx;//When the gun is attempted to use when there is no ammo in the clip, and auto_reload is false.
 

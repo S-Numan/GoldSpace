@@ -26,11 +26,24 @@
     void multMult(f32 _value);
 }*/
 
+
+
 enum HowToModify
 {
-    BeforeAdd,//Add to the value before the multiplier takes effect
-    AfterAdd,//Add to the value after the multiplier takes effect
-    AddMult,//Multiply the value along with other ModiHow's.
+    BeforeAdd = 2,//Add to the value before the multiplier takes effect
+    AfterAdd = 4,//Add to the value after the multiplier takes effect
+    AddMult = 3,//Multiply the value along with other ModiHow's.
+}
+//These two enums work together just fine.
+enum WhatValue
+{
+    CurrentValue = 0,
+    BaseValue = 1,
+    BeforeAddValue = 2,
+    MultiplierValue = 3,
+    MultValue = 3,
+    AfterAddValue = 4,
+    ValueCount
 }
 
 class ModiHow//For modifying ModiVars
@@ -78,16 +91,6 @@ class ModiBase
     }
 }
 
-enum WhatValue
-{
-    CurrentValue = 0,
-    BaseValue = 1,
-    BeforeAddValue = 2,
-    MultiplierValue = 3,
-    AfterAddValue = 4,
-    ValueCount
-}
-
 class Modif32 : ModiBase
 {
     Modif32(string _name, f32 default_value = 0.0f)
@@ -98,15 +101,15 @@ class Modif32 : ModiBase
         //Initialization of the variable
         value = array<f32>(5);
         
-        value[1] = default_value;//[1] = base value.
+        value[BaseValue] = default_value;//base value.
         
-        value[0] = value[1];//[0] = current value.
+        value[CurrentValue] = value[BaseValue];//current value.
 
-        value[3] = 1.0f;//[2] = multiplier value; applied to current value when grabbing the value. For active modifiers
+        value[MultValue] = 1.0f;//multiplier value; applied to current value when grabbing the value. For active modifiers
 
-        value[2] = 0.0f;//[3] = before add value; applied before the multipler value of [2] when grabbing the current value
+        value[BeforeAdd] = 0.0f;//before add value; applied before the multipler value when grabbing the current value
 
-        value[4] = 0.0f;//[4] = after add value; applied after the multiplier value of [2] when grabbing the current value.
+        value[AfterAdd] = 0.0f;//after add value; applied after the multiplier value when grabbing the current value.
 
     }
 
@@ -114,13 +117,13 @@ class Modif32 : ModiBase
 
     f32 getValue()//Return the current value
     {
-        //return the (base value + before add) multiplied by the multiplier value, then the add value afterwards.
-        return (value[1] + value[2]) * value[3] + value[4];//Don't do this unless any of the values changed for optimization purposes. TODO numan
+        //return the (base value + before add) multiplied by the multiplier value, then the after add value afterwards.
+        return (value[BaseValue] + value[BeforeAdd]) * value[MultValue] + value[AfterAdd];//Don't do this unless any of the values changed for optimization purposes. TODO numan
     }//If it makes it easier, think of the current value as a temp value, and the base value as the default value.
 
     void setValue(f32 _value)//Sets the base value only. The current value should only be changed by modifiers. For example, a laserpointer is a modifier that applies itself to accuracy, raising it.
     {
-        value[1] = _value;
+        value[BaseValue] = _value;
         
         if(@base_value_changed_func != @null)
         {
@@ -131,7 +134,7 @@ class Modif32 : ModiBase
 
     f32 get_opIndex(int idx) const
     {
-        if(idx == 0)//If the index is the current value
+        if(idx == CurrentValue)//If the index is the current value
         {
             return getValue();//Get the current value
         }
@@ -171,7 +174,9 @@ class Modibool : ModiBase
         //Initialization of the variable
         value = array<bool>(2);
         
-        value[1] = default_value;
+        value[BaseValue] = default_value;
+
+        value[CurrentValue] = value[BaseValue];
     }
 
     private bool[] value;
@@ -180,11 +185,12 @@ class Modibool : ModiBase
     {
         if(get_base)
         {
-            return value[1];
+            return value[BaseValue];
         }
         else
         {
-            return value[0];
+            //return value[CurrentValue];
+            return value[BaseValue];
         }
     }
 
@@ -192,7 +198,7 @@ class Modibool : ModiBase
     {
         if(set_base)
         {
-            value[1] = _value;
+            value[BaseValue] = _value;
             
             if(@base_value_changed_func != @null)
             {
@@ -201,7 +207,7 @@ class Modibool : ModiBase
         }
         else
         {
-            value[0] = _value;
+            value[CurrentValue] = _value;
         }
     }
 
@@ -209,7 +215,7 @@ class Modibool : ModiBase
 
     bool get_opIndex(int idx) const
     {
-        if(idx == 0)//If the index is the current value
+        if(idx == CurrentValue)//If the index is the current value
         {
             return getValue();//Get the current value
         }
