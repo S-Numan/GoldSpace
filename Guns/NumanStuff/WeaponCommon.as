@@ -75,14 +75,11 @@ namespace it
         {
             ticks_since_created = Nu::u32_max();
 
-            array<Modif32@> _f32_array = array<Modif32@>();
-            @f32_array = @_f32_array;
+            @f32_array = @array<Modif32@>();
 
-            array<Modibool@> _bool_array = array<Modibool@>();
-            @bool_array = @_bool_array;
+            @bool_array = @array<Modibool@>();
 
-            array<DefaultModifier@> _all_modifiers = array<DefaultModifier@>();
-            @all_modifiers = @_all_modifiers;
+            @all_modifiers = @array<DefaultModifier@>();
         }
         void AfterInit()
         {
