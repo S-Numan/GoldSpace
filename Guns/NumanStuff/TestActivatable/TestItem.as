@@ -1,12 +1,12 @@
 #include "WeaponCommon.as";
 
-it::activatable@ example_thing;
+it::item@ example_thing;
 
 void onInit( CBlob@ this )
 {
     print("created TestItem");   
     CShape@ shape = this.getShape();
-    @example_thing = @it::activatable();
+    @example_thing = @it::item();
 
     example_thing.addUseListener(@onUse);
     
@@ -32,6 +32,10 @@ void onInit( CBlob@ this )
     example_thing.no_ammo_no_shots[BaseValue] = false;
 
     example_thing.use_with_shot_afterdelay[BaseValue] = false;
+
+    example_thing.reset_charge_on_use[BaseValue] = true;
+
+    example_thing.charge_up_time[BaseValue] = 10;
 
 
 
@@ -64,9 +68,12 @@ void onTick( CBlob@ this )
 
 
 
-void onUse(CBitStream@ params)
+void onUse(array<Modif32@>@ f32_array, array<Modibool@>@ bool_array, array<DefaultModifier@>@ all_modifiers)
 {
-    print("\n\nthis has been used\n");
+    print("\n\nthis has been used");
+    print("f32_array.size() == " + f32_array.size());
+    print("bool_array.size() == " + bool_array.size());
+    print("all_modifiers.size() == " + all_modifiers.size());
     //example_thing.DebugModiVars(true);
     example_thing.DebugVars();
 }

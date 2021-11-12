@@ -80,6 +80,9 @@ namespace it
             @bool_array = @array<Modibool@>();
 
             @all_modifiers = @array<DefaultModifier@>();
+
+            tag_array = array<int>();
+            tag_array.reserve(5);
         }
         void AfterInit()
         {
@@ -87,10 +90,12 @@ namespace it
 
             for(i = 0; i < bool_array.size(); i++)
             {
+                if(bool_array[i] == @null) { Nu::Error("Weird problem, bool_array thing was null at " + i); continue; }
                 bool_array[i].setBaseValueChangedFunc(@BASE_VALUE_CHANGED(BaseValueChanged));
             }
             for(i = 0; i < f32_array.size(); i++)
             {
+                if(f32_array[i] == @null) { Nu::Error("Weird problem, f32_array thing was null at " + i); continue; }
                 f32_array[i].setBaseValueChangedFunc(@BASE_VALUE_CHANGED(BaseValueChanged));
             }
         }
@@ -103,6 +108,12 @@ namespace it
         }
 
         array<Modif32@>@ f32_array;
+
+        array<Modibool@>@ bool_array;
+        
+        array<DefaultModifier@>@ all_modifiers;//All modifiers
+
+
         u16 getModif32Point(string _name)//TODO make a hash method for this too.
         {
             int _name_hash = _name.getHash();
@@ -115,7 +126,6 @@ namespace it
             }
             return Nu::u16_max();
         }
-        array<Modibool@>@ bool_array;
         u16 getModiboolPoint(string _name)
         {
             int _name_hash = _name.getHash();
@@ -163,7 +173,7 @@ namespace it
             print("f32 vars\n");
             for(i = 0; i < f32_array.size(); i++)
             {
-                print("Name = " + f32_array[i].getName());
+                print("Name[" + i + "] = " + f32_array[i].getName());
                 print("BaseValue = " + f32_array[i][BaseValue]);
                 print("CurrentValue = " + f32_array[i][CurrentValue]);
                 if(full_data)
@@ -177,7 +187,7 @@ namespace it
             print("bool vars\n");
             for(i = 0; i < bool_array.size(); i++)
             {
-                print("Name = " + bool_array[i].getName());
+                print("Name[" + i + "] = " + bool_array[i].getName());
                 print("BaseValue = " + bool_array[i][BaseValue]);
                 print("CurrentValue = " + bool_array[i][CurrentValue]);
                 if(full_data)
@@ -230,95 +240,6 @@ namespace it
         }
 
 
-        array<DefaultModifier@>@ all_modifiers;//All modifiers
-
-        u32 ticks_since_created;
-    }
-
-    //In order: this, params.
-    //funcdef void USE_CALLBACK(activatable@, CBitStream@);
-    //While I would prefer to send the handle to the class itself, kag doesn't let me do casting to upper/lower versions of the class.
-
-    //In order: params.
-    funcdef void USE_CALLBACK(CBitStream@);
-
-    //terminology
-        //USE                   When the user presses the button to use it once.
-        //SHOT                  Single activation of the gun. (can happen several times from a single USE)
-        //PROJECTILE            Projectiles from the single SHOT of the gun. (weapon only)
-    class activatable : basemodistore 
-    {
-        activatable()
-        {
-            Init();
-
-            
-            bool_array.reserve(5);
-            f32_array.reserve(10);
-            setModiVars();
-            
-
-            AfterInit();
-        }
-
-        void Init()
-        {
-            basemodistore::Init();
-
-            use_func = @null;
-            queued_shots = 0;
-            shot_afterdelay_left = 0;
-            use_afterdelay_left = 0;
-            use_delay_left = 0;
-            ammo_count_left = 0;
-            tag_array = array<int>();
-            tag_array.reserve(5);
-        
-            shot_sfx = "";
-            empty_total_sfx = "";
-            empty_total_ongoing_sfx = "";
-        }
-
-        void setModiVars()
-        {
-            //USE how
-            f32_array.push_back(@use_afterdelay);
-            //f32_array.push_back(@use_delay);//Disabled for being confusing to program.
-        
-            f32_array.push_back(@max_ammo_count);
-
-            bool_array.push_back(@use_on_release);
-            f32_array.push_back(@using_mode);
-
-
-            //Shots
-            f32_array.push_back(@ammo_per_shot);
-            f32_array.push_back(@knockback_per_shot);
-            f32_array.push_back(@shots_per_use);
-            f32_array.push_back(@shot_afterdelay);
-
-            //MISC
-            bool_array.push_back(@remove_on_empty);
-            bool_array.push_back(@use_with_queued_shots);
-            bool_array.push_back(@use_with_shot_afterdelay);
-            bool_array.push_back(@no_ammo_no_shots);
-            f32_array.push_back(@morium_cost);
-        }
-
-        void BaseValueChanged() override//Called if a base value is changed.
-        {
-            basemodistore::BaseValueChanged();
-            print("activatable base value changed");
-        }
-
-        void DebugVars()
-        {
-            print("queued_shots = " + queued_shots);
-            print("shot_afterdelay_left = " + shot_afterdelay_left);
-            print("use_afterdelay_left = " + use_afterdelay_left);
-            print("use_delay_left = " + use_delay_left);
-            print("ammo_count_left = " + ammo_count_left);
-        }
 
         array<int> tag_array;
 
@@ -364,6 +285,112 @@ namespace it
             return false;//No tag found to remove
         }
 
+        void DebugTags()
+        {
+            print("all tags\n");
+            for(u16 i = 0; i < tag_array.size(); i++)
+            {
+                print("tag_array[" + i + "] == " + tag_array[i]);
+            }
+        }
+
+        u32 ticks_since_created;
+    }
+
+    //this
+    //funcdef void USE_CALLBACK(activatable@);
+    //While I would prefer to send the handle to the class itself, kag doesn't let me do casting to upper/lower versions of the class.
+
+    //In order: Modif32@ array handle, Modibool@ array handle, DefaultModifier@ array handle.
+    funcdef void USE_CALLBACK(array<Modif32@>@, array<Modibool@>@, array<DefaultModifier@>@);
+
+    //terminology
+        //USE                   When the user presses the button to use it once.
+        //SHOT                  Single activation of the gun. (can happen several times from a single USE)
+        //PROJECTILE            Projectiles from the single SHOT of the gun. (weapon only)
+    class activatable : basemodistore 
+    {
+        activatable()
+        {
+            Init();
+
+            
+            bool_array.reserve(6);
+            f32_array.reserve(10);
+            setModiVars();
+            
+
+            AfterInit();
+        }
+
+        void Init()
+        {
+            basemodistore::Init();
+
+            use_func = @null;
+            queued_shots = 0;
+            shot_afterdelay_left = 0;
+            use_afterdelay_left = 0;
+            use_delay_left = 0;
+            ammo_count_left = 0;
+            current_charge = 0;
+            currently_charging = false;
+
+            shot_sfx = "";
+            empty_total_sfx = "";
+            empty_total_ongoing_sfx = "";
+        }
+
+        void setModiVars()
+        {
+            //USE how
+            f32_array.push_back(@use_afterdelay);
+            //f32_array.push_back(@use_delay);//Disabled for being confusing to program.
+        
+            f32_array.push_back(@max_ammo_count);
+
+            bool_array.push_back(@use_on_release);
+            f32_array.push_back(@using_mode);
+
+            //USE effects
+            f32_array.push_back(@knockback_per_use);
+
+
+            //Shots
+            f32_array.push_back(@ammo_per_shot);
+            f32_array.push_back(@knockback_per_shot);
+            f32_array.push_back(@shots_per_use);
+            f32_array.push_back(@shot_afterdelay);
+
+            //Charging
+            f32_array.push_back(@charge_up_time);
+            f32_array.push_back(@charge_down_per_tick);
+            bool_array.push_back(@reset_charge_on_use);
+
+            //MISC
+            bool_array.push_back(@remove_on_empty);
+            bool_array.push_back(@use_with_queued_shots);
+            bool_array.push_back(@use_with_shot_afterdelay);
+            bool_array.push_back(@no_ammo_no_shots);
+        }
+
+        void BaseValueChanged() override//Called if a base value is changed.
+        {
+            basemodistore::BaseValueChanged();
+            print("activatable base value changed");
+        }
+
+        void DebugVars()
+        {
+            print("queued_shots = " + queued_shots);
+            print("shot_afterdelay_left = " + shot_afterdelay_left);
+            print("use_afterdelay_left = " + use_afterdelay_left);
+            print("use_delay_left = " + use_delay_left);
+            print("ammo_count_left = " + ammo_count_left);
+            print("currently_charging = " + currently_charging);
+            print("current_charge = " + current_charge);
+        }
+
 
         
 
@@ -393,6 +420,11 @@ namespace it
                 use_delay_left -= 1.0f;
                 if(use_delay_left < 0.0f){ use_delay_left = 0.0f; }
             }*/
+            if(!currently_charging && current_charge > 0)
+            {
+                current_charge -= charge_down_per_tick[CurrentValue];
+                if(current_charge < 0.0f){ current_charge = 0.0f; }
+            }
             if(shot_afterdelay_left > 0)
             {
                 shot_afterdelay_left -= 1.0f;
@@ -416,11 +448,21 @@ namespace it
 
             }*/
 
+            if(currently_charging)
+            {
+                currently_charging = false;
+            }
+
             u8 can_use_reason = CanUseOnce(controls);
 
             if(can_use_reason == 0)//Use logic
             {
                 UseOnce();
+            }
+            else if(can_use_reason == 10)//current_charge is not equal to the required charge_up_value
+            {
+                current_charge += 1.0f;
+                currently_charging = true;
             }
             else if(can_use_reason == 4//no_ammo_no_shots is true, and the current amount of shots plus the amount that would be added went past max ammo. There are no current queued shots
             || can_use_reason == 7)//Or there is simply no ammo left
@@ -428,7 +470,10 @@ namespace it
                 use_afterdelay_left = use_afterdelay[CurrentValue];//Add the delay like this was used.
                 if(empty_total_sfx != "") { Sound::Play(empty_total_sfx); }//Play attempted use sound//TODO, make sfx better. Have position, volume, pitch as variables. Every client should hear the shots.
             }
-
+            else if(can_use_reason == 8)
+            {
+                error("TEST! REMOVE ME LATER");
+            }
 
             //Do shot logic
             u8 can_shoot_reason = CanShootOnce();
@@ -495,7 +540,7 @@ namespace it
         //7 == there is no ammo left
         //8 == Same as 4, but there are queued shots.
         //9 == shot afterdelay is not equal to 0 and use_with_shot_afterdelay is false
-
+        //10 == current charge is not equal to 0
         u8 CanUseOnce(CControls@ controls)
         {
             if(use_afterdelay_left != 0.0f)//If use afterdelay is not over
@@ -514,6 +559,16 @@ namespace it
             {
                 return 9;//STAP
             }
+            
+            return CanUseCharge(controls);
+        }
+        u8 CanUseCharge(CControls@ controls)
+        {
+            if(current_charge != charge_up_time[CurrentValue])
+            {
+                return 10;
+            }
+
             return CanUsingMode(controls);
         }
         u8 CanUsingMode(CControls@ controls)
@@ -596,6 +651,11 @@ namespace it
         {
             queued_shots += shots_per_use[CurrentValue];//Queue up a shot
             use_afterdelay_left = use_afterdelay[CurrentValue];
+        
+            if(reset_charge_on_use[CurrentValue])
+            {
+                current_charge = 0.0f;
+            }
         }
         void ShootOnce()
         {
@@ -614,8 +674,7 @@ namespace it
 
             if(use_func != @null)//If the function to call exists
             {
-                CBitStream@ _params;
-                use_func(_params);//Call it
+                use_func(@f32_array, @bool_array, @all_modifiers);//Call it
                 //TODO Apply knockback per shot somehow
             }
             else
@@ -651,8 +710,25 @@ namespace it
 
         f32 ammo_count_left;
 
-        Modif32@ morium_cost = Modif32("morium_cost", 0.0f);//Morium cost per use when creating ammo for the activatable. a cost below 0 makes this activatable not rechargable
         
+        Modif32@ knockback_per_use = Modif32("knockback_per_use", 0.0f);//pushes you around when activated, specifically it pushes you away from the direction your mouse is aiming.
+
+
+
+        //Charging
+    
+            Modif32@ charge_up_time = Modif32("charge_up_time", 0.0f);//Time the player must be holding the use button to activate a use of this. Think spinup time for a minigun.
+
+            float current_charge;//Value that stores the current charge
+
+            bool currently_charging;//Value that stores if this is currently being charged
+
+            Modif32@ charge_down_per_tick = Modif32("charge_down_per_tick", 1.0f);//Amount the float above charge_up_time is subtracted by every tick. Does not take effect while charging up.
+
+            Modibool reset_charge_on_use = Modibool("reset_charge_on_use", false);//If this is true, current_charge resets to 0.0f once this is used. If this is false, it does nothing.
+
+        //Charging
+
         
         //SHOTS
             //EFFECTS
@@ -703,8 +779,8 @@ namespace it
             Init();
 
             
-            bool_array.reserve(5);
-            f32_array.reserve(20);
+            bool_array.reserve(8);
+            f32_array.reserve(16);
             setModiVars();
 
 
@@ -720,15 +796,6 @@ namespace it
         void setModiVars() override
         {
             activatable::setModiVars();
-            
-
-            //Charging
-            f32_array.push_back(@charge_up_time);
-            f32_array.push_back(@charge_down_per_tick);
-
-            //USE effects
-            f32_array.push_back(@knockback_per_use);
-            f32_array.push_back(@rarity);
 
             //Shots
             f32_array.push_back(@random_shot_spread);
@@ -736,6 +803,10 @@ namespace it
             f32_array.push_back(@max_shot_spread);
             f32_array.push_back(@spread_gain_per_shot);
             f32_array.push_back(@spread_loss_per_tick);        
+        
+            //Misc
+            f32_array.push_back(@morium_cost);
+            f32_array.push_back(@rarity);
         }
         
         void BaseValueChanged() override//Called if a base value is changed.
@@ -752,17 +823,10 @@ namespace it
             return true;
         }
 
+        Modif32@ morium_cost = Modif32("morium_cost", 0.0f);//Morium cost per use when creating ammo for the activatable. a cost below 0 makes this activatable not rechargable
 
         Modif32@ rarity = Modif32("rarity", Undefined);//Should be an enum.
 
-        Modif32@ knockback_per_use = Modif32("knockback_per_use", 0.0f);//pushes you around when activated, specifically it pushes you away from the direction your mouse is aiming.
-
-
-
-
-        Modif32@ charge_up_time = Modif32("charge_up_time", 0.0f);//Time the player must be holding the use button to activate a use of this. Think spinup time for a minigun.
-
-        Modif32@ charge_down_per_tick = Modif32("charge_down_per_tick", 0.0f);//Amount the float above charge_up_time is subtracted by every tick.
 
         //SHOTS
         //
