@@ -199,7 +199,7 @@ namespace it
         }
         bool removeModifier(u16 _pos)
         {
-            if(_pos >= all_modifiers.size()) { Nu::Error("Reached out of bounds"); return false; }
+            if(_pos >= all_modifiers.size()) { Nu::Error("Reached out of bounds. Attempted to reach " + _pos + " while all_modifiers.size() was " + all_modifiers.size()); return false; }
 
             all_modifiers[_pos].AntiPassiveTick();
             
@@ -528,7 +528,7 @@ namespace it
             }
             else
             {
-                Nu::Warning("Use mode not supported");
+                Nu::Warning("Using mode " + using_mode[CurrentValue] + " is not supported");
                 return 5;
             }
         }
@@ -604,12 +604,12 @@ namespace it
 
             if(shot_afterdelay_left != 0)
             {
-                Nu::Warning("shot_afterdelay_left was not 0 when shooting, something somewhere somehow is wrong. Good luck.");
+                Nu::Warning("shot_afterdelay_left was not 0 when shooting (was " + shot_afterdelay_left + "), something somewhere somehow is wrong. Good luck.");
             }
             shot_afterdelay_left = shot_afterdelay[CurrentValue];
             if(ammo_count_left < 0.0f)
             {
-                Nu::Warning("ammo_count_left went below 0, something somewhere somehow is wrong. Good luck.");
+                Nu::Warning("ammo_count_left went below 0 (was " + ammo_count_left + "), something somewhere somehow is wrong. Good luck.");
             }
 
             if(use_func != @null)//If the function to call exists
