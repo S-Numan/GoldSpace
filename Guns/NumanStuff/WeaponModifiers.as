@@ -152,7 +152,7 @@ class ExampleModifier : DefaultModifier
         u16 modi_pos = getModiVarPos(modi_array, "morium_cost".getHash());
         
         Random@ rnd = Random(getGameTime());//Random with seed
-        float random_number = (rnd.Next() + rnd.NextFloat()) % 2;//Random number between 0 and 2 (float)
+        float random_number = Nu::getRandomF32(0, 2);//Random number between 0 and 2 (float)
 
         modi_array[modi_pos][AddMult] = modi_array[modi_pos][AddMult] - random_number;//Subtract the multiplier by this number
     }

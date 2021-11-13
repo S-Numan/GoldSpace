@@ -71,8 +71,10 @@ namespace it
 
     class basemodistore
     {
-        void Init()
+        basemodistore()
         {
+            init = false;
+
             ticks_since_created = Nu::u32_max();
 
             @f32_array = @array<Modif32@>();
@@ -83,6 +85,17 @@ namespace it
 
             tag_array = array<int>();
             tag_array.reserve(5);
+        }
+
+        bool init;
+        void Init()
+        {
+            if(!init)//If init has not yet been called. (most derived class)
+            {
+                init = true;//Init has been called.
+            }
+
+            AfterInit();
         }
         void AfterInit()
         {
@@ -173,6 +186,7 @@ namespace it
             print("f32 vars\n");
             for(i = 0; i < f32_array.size(); i++)
             {
+                if(f32_array[i] == @null) { Nu::Error("Weird problem2, f32_array thing was null at " + i); continue; }
                 print("Name[" + i + "] = " + f32_array[i].getName());
                 print("BaseValue = " + f32_array[i][BaseValue]);
                 print("CurrentValue = " + f32_array[i][CurrentValue]);
@@ -187,6 +201,7 @@ namespace it
             print("bool vars\n");
             for(i = 0; i < bool_array.size(); i++)
             {
+                if(bool_array[i] == @null) { Nu::Error("Weird problem2, bool_array thing was null at " + i); continue; }
                 print("Name[" + i + "] = " + bool_array[i].getName());
                 print("BaseValue = " + bool_array[i][BaseValue]);
                 print("CurrentValue = " + bool_array[i][CurrentValue]);
@@ -312,20 +327,6 @@ namespace it
     {
         activatable()
         {
-            Init();
-
-            
-            bool_array.reserve(6);
-            f32_array.reserve(10);
-            setModiVars();
-            
-
-            AfterInit();
-        }
-
-        void Init() override
-        {
-            basemodistore::Init();
 
             use_func = @null;
             use_afterdelay_left = 0;
@@ -337,6 +338,25 @@ namespace it
 
             use_sfx = "";
             empty_total_sfx = "";
+        }
+
+        void Init() override
+        {
+            if(!init)//If init has not yet been called. (most derived class)
+            {
+                init = true;//Init has been called.
+                
+                bool_array.reserve(2);
+                f32_array.reserve(6);
+                setModiVars();
+            }
+
+            basemodistore::Init();
+        }
+
+        void AfterInit() override
+        {
+            basemodistore::AfterInit();
         }
 
         void setModiVars()
@@ -680,33 +700,36 @@ namespace it
 
     }
 
-    //In order: Modif32@ array handle, Modibool@ array handle, DefaultModifier@ array handle.
-    funcdef void SHOT_CALLBACK(array<Modif32@>@, array<Modibool@>@, array<DefaultModifier@>@);
+    //In order: Angle, Modif32@ array handle, Modibool@ array handle, DefaultModifier@ array handle.
+    funcdef void SHOT_CALLBACK(f32, array<Modif32@>@, array<Modibool@>@, array<DefaultModifier@>@);
 
     class item : activatable
     {
         item()
         {
-            Init();
-
-            
-            bool_array.reserve(8);
-            f32_array.reserve(16);
-            setModiVars();
-
-
-            AfterInit();
-        }
-        void Init() override
-        {
-            activatable::Init();
-
             shot_func = @null;
             queued_shots = 0;
             shot_afterdelay_left = 0;
 
             shot_sfx = "";
             empty_total_ongoing_sfx = "";
+        }
+        void Init() override
+        {
+            if(!init)//If init has not yet been called. (most derived class)
+            {
+                init = true;//Init has been called.
+                
+                bool_array.reserve(2 + 3);
+                f32_array.reserve(6 + 6);
+                setModiVars();
+            }
+            
+            activatable::Init();
+        }
+        void AfterInit() override
+        {
+            activatable::AfterInit();
         }
 
         void setModiVars() override
@@ -823,7 +846,7 @@ namespace it
             @shot_func = @value;
         }
         
-        void ShootOnce()
+        void ShootOnce(bool call_func = true)
         {
             ammo_count_left -= ammo_per_shot[CurrentValue];
             queued_shots -= 1;
@@ -838,9 +861,9 @@ namespace it
                 Nu::Warning("ammo_count_left went below 0 (was " + ammo_count_left + "), something somewhere somehow is wrong. Good luck.");
             }
 
-            if(shot_func != @null)//If the function to call exists
+            if(call_func && shot_func != @null)//If the function to call exists
             {
-                shot_func(@f32_array, @bool_array, @all_modifiers);//Call it
+                shot_func(0.0f, @f32_array, @bool_array, @all_modifiers);//Call it
                 //TODO Apply knockback per shot somehow
             }
 
@@ -975,19 +998,24 @@ namespace it
     {
         itemaim()
         {
-            Init();
-
-            
-            bool_array.reserve(8);
-            f32_array.reserve(16);
-            setModiVars();
-
-
-            AfterInit();
+            current_spread = 0;
+            @rnd = @Random(getGameTime() * 404 + 1337 - Time_Local());
         }
         void Init() override
         {
+            if(!init)//If init has not yet been called. (most derived class)
+            {
+                init = true;//Init has been called.
+                
+                bool_array.reserve(2 + 3 + 0);
+                f32_array.reserve(6 + 6 + 5);
+                setModiVars();
+            }
             item::Init();
+        }
+        void AfterInit() override
+        {
+            item::AfterInit();
         }
 
         void setModiVars() override
@@ -1011,31 +1039,82 @@ namespace it
         void DebugVars() override
         {
             item::DebugVars();
+            print("current_spread = " + current_spread);
         }
 
 
         bool Tick(CControls@ controls) override
         {
             if(!item::Tick(@controls)){ return false; }
-            
 
             return true;
+        }
+
+
+        void DelayLogic(CControls@ controls) override
+        {
+            item::DelayLogic(@controls);
+
+            //Lower current_spread by spread_loss_per_tick if above min_shot_spread
+            if(current_spread > min_shot_spread[CurrentValue])
+            {
+                current_spread -= spread_loss_per_tick[CurrentValue];
+            }
+            //If gone below min_shot_spread, set current_spread to min_shot_spread
+            if(current_spread < min_shot_spread[CurrentValue])
+            {
+                current_spread = min_shot_spread[CurrentValue];
+            }
+            
+        }
+
+
+
+        void ShootOnce(bool call_func = true)
+        {
+            item::ShootOnce(false);//Do not call the function
+
+            s8 flip_deviation;
+
+            if(call_func && shot_func != @null)//If the function to call exists
+            {
+                flip_deviation = (rnd.Next() % 2 == 0) ? -1 : 1; 
+                f32 random_deviation = Nu::getRandomF32(0, random_shot_spread[CurrentValue] * 0.5f) * flip_deviation;
+
+                flip_deviation = (rnd.Next() % 2 == 0) ? -1 : 1;
+                f32 random_aim = Nu::getRandomF32(0, current_spread * 0.5f) * flip_deviation;
+
+                print("\nrandom_deviation = " + random_deviation);
+                print("current_spread = " + current_spread);
+                print("random_aim = " + random_aim);
+
+                shot_func(random_aim + random_deviation, @f32_array, @bool_array, @all_modifiers);//Call it
+                //TODO Apply knockback per shot somehow
+            }
+
+            current_spread += spread_gain_per_shot[CurrentValue];
+            if(current_spread > max_shot_spread[CurrentValue])
+            {
+                current_spread = max_shot_spread[CurrentValue];
+            }
         }
 
 
 
 
 
-
+        Random@ rnd; //Random number generator
 
         //AIMING
             //
+            f32 current_spread;
+
             Modif32@ random_shot_spread = Modif32("random_shot_spread", 0.0f);//Value that changes direction of where the shot is aimed by picking a value between 0 and this variable. Half chance to invert the value. Applies this to the direction the shot would be going.
 
             Modif32@ min_shot_spread = Modif32("min_shot_spread", 0.0f);//Min deviation from aimed point for shot.
-            Modif32@ max_shot_spread = Modif32("max_shot_spread", 0.0f);//Max deviation from aimed point for shot.
+            Modif32@ max_shot_spread = Modif32("max_shot_spread", 9999.0f);//Max deviation from aimed point for shot.
 
-            Modif32@ spread_gain_per_shot = Modif32("spread_gain_per_shot", 0.0f);//(not per projectile. Per USE) (Otherwise known as recoil) (capped to max_shot_spread)
+            Modif32@ spread_gain_per_shot = Modif32("spread_gain_per_shot", 0.0f);//(not per projectile. Per SHOT) (Otherwise known as recoil) (capped to max_shot_spread)
 
             Modif32@ spread_loss_per_tick = Modif32("spread_loss_per_tick", 0.0f);// (capped to min_projectile_spread)
 

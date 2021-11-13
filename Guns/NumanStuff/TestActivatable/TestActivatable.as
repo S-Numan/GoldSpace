@@ -7,6 +7,7 @@ void onInit( CBlob@ this )
     print("created TestItem");   
     CShape@ shape = this.getShape();
     @example_thing = @it::activatable();
+    example_thing.Init();
 
     example_thing.addUseListener(@onUse);
     

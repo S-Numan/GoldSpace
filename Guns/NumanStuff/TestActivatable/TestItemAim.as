@@ -1,12 +1,12 @@
 #include "WeaponCommon.as";
 
-it::item@ example_thing;
+it::itemaim@ example_thing;
 
 void onInit( CBlob@ this )
 {
     print("created TestItem");   
     CShape@ shape = this.getShape();
-    @example_thing = @it::item();
+    @example_thing = @it::itemaim();
     example_thing.Init();
 
     example_thing.addUseListener(@onUse);
@@ -47,6 +47,15 @@ void onInit( CBlob@ this )
 
 
 
+
+    example_thing.random_shot_spread[BaseValue] = 5.0f;
+
+    example_thing.min_shot_spread[BaseValue] = 2.0f;
+    example_thing.max_shot_spread[BaseValue] = 9999.0f;
+
+    example_thing.spread_gain_per_shot[BaseValue] = 30.0f;
+
+    example_thing.spread_loss_per_tick[BaseValue] = 1.0f;
 
 
 
