@@ -712,13 +712,6 @@ namespace it
         void setModiVars() override
         {
             activatable::setModiVars();
-
-            //Shots
-            f32_array.push_back(@random_shot_spread);
-            f32_array.push_back(@min_shot_spread);
-            f32_array.push_back(@max_shot_spread);
-            f32_array.push_back(@spread_gain_per_shot);
-            f32_array.push_back(@spread_loss_per_tick);        
         
             //Shots
             f32_array.push_back(@ammo_per_shot);
@@ -960,22 +953,6 @@ namespace it
 
 
 
-            //AIMING
-            //
-                Modif32@ random_shot_spread = Modif32("random_shot_spread", 0.0f);//Value that changes direction of where the shot is aimed by picking a value between 0 and this variable. Half chance to invert the value. Applies this to the direction the shot would be going.
-
-                Modif32@ min_shot_spread = Modif32("min_shot_spread", 0.0f);//Min deviation from aimed point for shot.
-                Modif32@ max_shot_spread = Modif32("max_shot_spread", 0.0f);//Max deviation from aimed point for shot.
-
-                Modif32@ spread_gain_per_shot = Modif32("spread_gain_per_shot", 0.0f);//(not per projectile. Per USE) (Otherwise known as recoil) (capped to max_shot_spread)
-
-                Modif32@ spread_loss_per_tick = Modif32("spread_loss_per_tick", 0.0f);// (capped to min_projectile_spread)
-
-                //Multiplier applied to each value when crouching.
-            //
-            //AIMING
-
-
 
         //
         //Shots
@@ -988,6 +965,85 @@ namespace it
 
             string empty_total_ongoing_sfx;//Out of ammo from ongoing queued up shots
         //SFX
+    }
+
+
+
+
+
+    class itemaim : item
+    {
+        itemaim()
+        {
+            Init();
+
+            
+            bool_array.reserve(8);
+            f32_array.reserve(16);
+            setModiVars();
+
+
+            AfterInit();
+        }
+        void Init() override
+        {
+            item::Init();
+        }
+
+        void setModiVars() override
+        {
+            item::setModiVars();
+
+            //Shots
+            f32_array.push_back(@random_shot_spread);
+            f32_array.push_back(@min_shot_spread);
+            f32_array.push_back(@max_shot_spread);
+            f32_array.push_back(@spread_gain_per_shot);
+            f32_array.push_back(@spread_loss_per_tick);        
+        }
+        
+        void BaseValueChanged() override//Called if a base value is changed.
+        {
+            item::BaseValueChanged();
+            print("itemaim base value changed");
+        }
+        
+        void DebugVars() override
+        {
+            item::DebugVars();
+        }
+
+
+        bool Tick(CControls@ controls) override
+        {
+            if(!item::Tick(@controls)){ return false; }
+            
+
+            return true;
+        }
+
+
+
+
+
+
+
+        //AIMING
+            //
+            Modif32@ random_shot_spread = Modif32("random_shot_spread", 0.0f);//Value that changes direction of where the shot is aimed by picking a value between 0 and this variable. Half chance to invert the value. Applies this to the direction the shot would be going.
+
+            Modif32@ min_shot_spread = Modif32("min_shot_spread", 0.0f);//Min deviation from aimed point for shot.
+            Modif32@ max_shot_spread = Modif32("max_shot_spread", 0.0f);//Max deviation from aimed point for shot.
+
+            Modif32@ spread_gain_per_shot = Modif32("spread_gain_per_shot", 0.0f);//(not per projectile. Per USE) (Otherwise known as recoil) (capped to max_shot_spread)
+
+            Modif32@ spread_loss_per_tick = Modif32("spread_loss_per_tick", 0.0f);// (capped to min_projectile_spread)
+
+            //Multiplier applied to each value when crouching? Nah
+        //
+        //AIMING
+
+
     }
 
 
