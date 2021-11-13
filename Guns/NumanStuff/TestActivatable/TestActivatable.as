@@ -12,8 +12,9 @@ void onInit( CBlob@ this )
     
     example_thing.max_ammo_count[BaseValue] = 17;//20 max shots
     example_thing.ammo_count_left = example_thing.max_ammo_count[CurrentValue];//20 shots in ammo at this moment
-
+    
     example_thing.using_mode[BaseValue] = 1;//Full auto!
+    //example_thing.using_mode[BaseValue] = 2;//use on release
 
     example_thing.use_sfx = "AssaultFire.ogg";
 

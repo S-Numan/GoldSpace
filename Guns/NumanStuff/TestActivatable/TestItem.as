@@ -19,7 +19,8 @@ void onInit( CBlob@ this )
 
     example_thing.shot_afterdelay[BaseValue] = 15;//Half a second per shot
 
-    //example_thing.using_mode[BaseValue] = 1;//Full auto!
+    example_thing.using_mode[BaseValue] = 1;//Full auto!
+    //example_thing.using_mode[BaseValue] = 2;//use on release
 
     example_thing.use_with_queued_shots[BaseValue] = false;
 
@@ -33,7 +34,7 @@ void onInit( CBlob@ this )
 
     example_thing.use_afterdelay[BaseValue] = 4;
 
-    example_thing.no_ammo_no_shots[BaseValue] = false;
+    example_thing.no_ammo_no_shots[BaseValue] = true;
 
     example_thing.use_with_shot_afterdelay[BaseValue] = false;
 
@@ -42,8 +43,6 @@ void onInit( CBlob@ this )
     example_thing.charge_up_time[BaseValue] = 10;
 
     example_thing.charge_down_per_tick[BaseValue] = 0.5f;
-
-    example_thing.use_on_release[BaseValue] = false;
 
 
 
