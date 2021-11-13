@@ -9,6 +9,8 @@ void onInit( CBlob@ this )
     @example_thing = @it::item();
 
     example_thing.addUseListener(@onUse);
+
+    example_thing.addShotListener(@onShot);
     
     example_thing.max_ammo_count[BaseValue] = 17;//20 max shots
     example_thing.ammo_count_left = example_thing.max_ammo_count[CurrentValue];//20 shots in ammo at this moment
@@ -17,9 +19,11 @@ void onInit( CBlob@ this )
 
     example_thing.shot_afterdelay[BaseValue] = 15;//Half a second per shot
 
-    example_thing.using_mode[BaseValue] = 1;//Full auto!
+    //example_thing.using_mode[BaseValue] = 1;//Full auto!
 
     example_thing.use_with_queued_shots[BaseValue] = false;
+
+    example_thing.use_sfx = "arrow_hit_ground.ogg";
 
     example_thing.shot_sfx = "AssaultFire.ogg";
 
@@ -36,6 +40,10 @@ void onInit( CBlob@ this )
     example_thing.reset_charge_on_use[BaseValue] = true;
 
     example_thing.charge_up_time[BaseValue] = 10;
+
+    example_thing.charge_down_per_tick[BaseValue] = 0.5f;
+
+    example_thing.use_on_release[BaseValue] = false;
 
 
 
@@ -63,7 +71,7 @@ void onTick( CBlob@ this )
     if(controls == @null){//Controls doesn't exist/
         return;//Stop
     }
-    example_thing.Tick(controls);
+    example_thing.Tick(@controls);
 }
 
 
@@ -71,6 +79,16 @@ void onTick( CBlob@ this )
 void onUse(array<Modif32@>@ f32_array, array<Modibool@>@ bool_array, array<DefaultModifier@>@ all_modifiers)
 {
     print("\n\nthis has been used");
+    print("f32_array.size() == " + f32_array.size());
+    print("bool_array.size() == " + bool_array.size());
+    print("all_modifiers.size() == " + all_modifiers.size());
+    //example_thing.DebugModiVars(true);
+    example_thing.DebugVars();
+}
+
+void onShot(array<Modif32@>@ f32_array, array<Modibool@>@ bool_array, array<DefaultModifier@>@ all_modifiers)
+{
+    print("\n\nthis has been shot");
     print("f32_array.size() == " + f32_array.size());
     print("bool_array.size() == " + bool_array.size());
     print("all_modifiers.size() == " + all_modifiers.size());

@@ -100,7 +100,7 @@ namespace it
             }
         }
 
-        bool Tick()
+        bool Tick(CControls@ controls)
         {
             ticks_since_created++;
             
@@ -323,7 +323,7 @@ namespace it
             AfterInit();
         }
 
-        void Init()
+        void Init() override
         {
             basemodistore::Init();
 
@@ -334,11 +334,11 @@ namespace it
             use_delay_left = 0;
             ammo_count_left = 0;
             current_charge = 0;
+            charge_allowance = false;
             currently_charging = false;
 
-            shot_sfx = "";
+            use_sfx = "";
             empty_total_sfx = "";
-            empty_total_ongoing_sfx = "";
         }
 
         void setModiVars()
@@ -395,74 +395,83 @@ namespace it
         
 
 
-        bool Tick(CControls@ controls)
+        bool Tick(CControls@ controls) override
         {
-            if(!basemodistore::Tick()){ return false; }
+            if(!basemodistore::Tick(controls)){ return false; }
 
-            DelayLogic();
+            DelayLogic(@controls);
 
 
-            UsingLogic(controls);
-
+            UsingLogic(@controls);
             
             return true;
         }
 
-        void DelayLogic()
+        void DelayLogic(CControls@ controls)
         {
+            if(!currently_charging && current_charge > 0//If this is not currently charging, and current charge is more than 0
+            && CanUseOnce(@controls, false) == 0)//and the base level of CanUseOnce allows being used. Note that this is done before the other delay lowerings. That makes it not lower until a tick after the other delays have reached 0.
+            {
+                current_charge -= charge_down_per_tick[CurrentValue];//Lower current_charge by charge_down_per_tick
+                if(current_charge < 0.0f){ current_charge = 0.0f; }//If current_charge goes below 0, set it to 0
+            }
+
             if(use_afterdelay_left > 0)
             {
                 use_afterdelay_left -= 1.0f;
                 if(use_afterdelay_left < 0.0f){ use_afterdelay_left = 0.0f; }
             }
+            
             /*if(use_delay_left > 0)
             {
                 use_delay_left -= 1.0f;
                 if(use_delay_left < 0.0f){ use_delay_left = 0.0f; }
             }*/
-            if(!currently_charging && current_charge > 0)
-            {
-                current_charge -= charge_down_per_tick[CurrentValue];
-                if(current_charge < 0.0f){ current_charge = 0.0f; }
-            }
-            if(shot_afterdelay_left > 0)
-            {
-                shot_afterdelay_left -= 1.0f;
-                if(shot_afterdelay_left < 0.0f){ shot_afterdelay_left = 0.0f; }
-            }
         }
 
-        void UsingLogic(CControls@ controls)
+        u8 UsingLogic(CControls@ controls)
         {
             //Gather variables
             //bool left_button = controls.isKeyPressed(KEY_LBUTTON);
             //bool left_button_release = controls.isKeyJustReleased(KEY_LBUTTON);
-            //bool left_button_just = controls.isKeyJustPressed(KEY_LBUTTON);
+            bool left_button_just = controls.isKeyJustPressed(KEY_LBUTTON);
 
-            /*if()//Does use delay exist?
+            if(currently_charging)//If this is currently charging
             {
-                use_delay_left = use_delay[CurrentValue];//Set use delay
-            }
-            if(use_delay[CurrentValue] > 0.0f && use_delay != 0)
-            {
-
-            }*/
-
-            if(currently_charging)
-            {
-                currently_charging = false;
+                currently_charging = false;//This is no longer charging.
             }
 
-            u8 can_use_reason = CanUseOnce(controls);
+            if(left_button_just && !charge_allowance)//If the button was just pressed and charge_allowance was false
+            {
+                charge_allowance = true;//Charge allowanc
+            }
+
+            u8 can_use_reason = CanUseOnce(@controls);
+
+            //print("current_charge = " + current_charge);
+            //print("can_use_reason = " + can_use_reason);
 
             if(can_use_reason == 0)//Use logic
             {
                 UseOnce();
+                if(charge_allowance && using_mode[CurrentValue] == 0)//If charge_allowance is true, and the using mode is semi auto.
+                {
+                    charge_allowance = false;//No more charge allowance
+                }
             }
-            else if(can_use_reason == 10)//current_charge is not equal to the required charge_up_value
+            else if(can_use_reason == 11)//Presing button, semi auto, but charge_allowance is false.
             {
-                current_charge += 1.0f;
                 currently_charging = true;
+            }
+            else if(can_use_reason == 10)//current_charge is not equal to the required charge_up_time
+            {
+                f32 _charge_up_time = charge_up_time[CurrentValue];//Get charge_up_time is a temp variable
+                if(current_charge != _charge_up_time)//If current_charge is not equal to charge up time
+                {
+                    current_charge += 1.0f;//Add one to it
+                    if(current_charge > charge_up_time[CurrentValue]) { current_charge = charge_up_time[CurrentValue]; }//If current_charge went past charge_up_time, set it to charge_up_time
+                    currently_charging = true;//This is currently charging
+                }
             }
             else if(can_use_reason == 4//no_ammo_no_shots is true, and the current amount of shots plus the amount that would be added went past max ammo. There are no current queued shots
             || can_use_reason == 7)//Or there is simply no ammo left
@@ -475,59 +484,12 @@ namespace it
                 error("TEST! REMOVE ME LATER");
             }
 
-            //Do shot logic
-            u8 can_shoot_reason = CanShootOnce();
-            if(can_shoot_reason == 1)//No queued up shots
-            {
-                
-            }
-            else if(can_shoot_reason == 2)//delay between shots
-            {
-
-            }
-            else if(can_shoot_reason == 0)//Can shoot
-            {
-                ShootOnce();
-            }
-            else if(can_shoot_reason == 5)//Out of ammo from ongoing queued up shots
-            {
-                //TODO: have a bool that changes how this behaves. If the bool is true; it removes all queued shots. If the bool is false; it behaves like it was shooting normally, just nothing was triggered and no heat was generated.
-                queued_shots = 0;//Remove all queued up shots.
-                if(empty_total_ongoing_sfx != "") { Sound::Play(empty_total_ongoing_sfx); }
-            }
+            return can_use_reason;
         }
 
         //
-        //Can I?
+        //CanUse
         //
-
-        //Shot
-        //
-        
-        //Reason
-        //0 == can shoot
-        //1 == no queued shots
-        //2 == delay between shots
-        //5 == out of ammo from ongoing queued up shots
-        u8 CanShootOnce()
-        {
-            if(queued_shots == 0)
-            {
-                return 1;
-            }
-            if(shot_afterdelay_left > 0)
-            {
-                return 2;
-            }
-            if(ammo_count_left - ammo_per_shot[CurrentValue] < 0.0f)//If there is not enough ammo for another shot
-            {
-                return 5;
-            }
-            return 0;
-        }
-
-        //
-        //Shot
 
         //Reason
         //0 == can use
@@ -540,8 +502,9 @@ namespace it
         //7 == there is no ammo left
         //8 == Same as 4, but there are queued shots.
         //9 == shot afterdelay is not equal to 0 and use_with_shot_afterdelay is false
-        //10 == current charge is not equal to 0
-        u8 CanUseOnce(CControls@ controls)
+        //10 == current charge is not adequate, and button is being pressed.
+        //11 == presing button, semi auto, but charge_allowance is false.
+        u8 CanUseOnce(CControls@ controls, bool encore = true)
         {
             if(use_afterdelay_left != 0.0f)//If use afterdelay is not over
             {
@@ -551,25 +514,13 @@ namespace it
             {
                 return 2;//Nay
             }
-            if(use_with_queued_shots[CurrentValue] == false && queued_shots != 0)//If this isn't supposed to be used with queued shots, and there are queued shots
-            {
-                return 3;//Can't be used right now
-            }
-            if(use_with_shot_afterdelay[CurrentValue] == false && shot_afterdelay_left != 0)//If this isn't supposed to be used when shot_afterdelay_left is not equal to 0
-            {
-                return 9;//STAP
-            }
             
-            return CanUseCharge(controls);
-        }
-        u8 CanUseCharge(CControls@ controls)
-        {
-            if(current_charge != charge_up_time[CurrentValue])
+            if(encore)
             {
-                return 10;
+                return CanUsingMode(controls);
             }
 
-            return CanUsingMode(controls);
+            return 0;
         }
         u8 CanUsingMode(CControls@ controls)
         {
@@ -590,31 +541,61 @@ namespace it
         //TODO, use send a keycode too so other buttons than left mouse button can be used.
         u8 CanFullAuto(CControls@ controls)
         {
-            return CanTrigger(controls.isKeyPressed(KEY_LBUTTON), controls.isKeyJustReleased(KEY_LBUTTON));
+            return CanTrigger(@controls, controls.isKeyPressed(KEY_LBUTTON));
         }
         u8 CanSemiAuto(CControls@ controls)
         {
-            return CanTrigger(controls.isKeyJustPressed(KEY_LBUTTON), controls.isKeyJustReleased(KEY_LBUTTON));
+            return CanTrigger(@controls, controls.isKeyJustPressed(KEY_LBUTTON));
         }
-        u8 CanTrigger(bool button_no_release, bool button_release)
+        u8 CanTrigger(CControls@ controls, bool button_no_release)
         {
+            bool button_release = controls.isKeyJustReleased(KEY_LBUTTON);
+            bool button_press = controls.isKeyPressed(KEY_LBUTTON);
+
+
             u8 return_value = 6;
-            if(!use_on_release[CurrentValue])//No use on release?
-            {
-                if(button_no_release)//If button
-                {
-                    return_value = 0;//Yup
-                }
-            }
-            else//Use on release
+            
+            //
+            if(use_on_release[CurrentValue])//Use on release?
             {
                 if(button_release)//If button release
                 {
                     return_value = 0;//Indeed
                 }
             }
+            else if(button_no_release)//Don't use on release, use if button
+            {
+                return_value = 0;//Yup
+            }
+            //
+
+            //Charging
+
+            if(charge_up_time[CurrentValue] != 0 &&//If charging is enabled
+                (return_value == 0 || button_press))//If the button is being triggered or button_press is true.
+            {
+                if(current_charge != charge_up_time[CurrentValue])//If current_charge is not adequate.
+                {
+                    return 10;//Back out of there
+                }
+                //there is enough charge
+                
+                if(charge_allowance)//charge_allowance was true, so it is allowed
+                {
+                    return_value = 0;//Forward!
+                }
+                else//Charge allowance is false
+                {
+                    return_value = 11;//Presing button, semi auto, but charge_allowance is false.
+                }
+            }
+            //Charging
+
+
             if(return_value == 0)//If this was going to return true
             {
+
+                //No ammo logic.
                 if(no_ammo_no_shots[CurrentValue] == true//and if no_ammo_no_shots is true
                 && queued_shots * ammo_per_shot[CurrentValue] + shots_per_use[CurrentValue] * ammo_per_shot[CurrentValue] > ammo_count_left)//and if the current amount of shots plus the amount that would be added would go past max ammo.
                 {
@@ -637,7 +618,7 @@ namespace it
 
 
         //
-        //Can I?
+        //CanUse
         //
 
 
@@ -649,42 +630,24 @@ namespace it
         }
         void UseOnce()
         {
-            queued_shots += shots_per_use[CurrentValue];//Queue up a shot
             use_afterdelay_left = use_afterdelay[CurrentValue];
         
+            ammo_count_left -= 1.0f;
+
             if(reset_charge_on_use[CurrentValue])
             {
                 current_charge = 0.0f;
             }
-        }
-        void ShootOnce()
-        {
-            ammo_count_left -= ammo_per_shot[CurrentValue];
-            queued_shots -= 1;
-
-            if(shot_afterdelay_left != 0)
-            {
-                Nu::Warning("shot_afterdelay_left was not 0 when shooting (was " + shot_afterdelay_left + "), something somewhere somehow is wrong. Good luck.");
-            }
-            shot_afterdelay_left = shot_afterdelay[CurrentValue];
-            if(ammo_count_left < 0.0f)
-            {
-                Nu::Warning("ammo_count_left went below 0 (was " + ammo_count_left + "), something somewhere somehow is wrong. Good luck.");
-            }
-
+            
             if(use_func != @null)//If the function to call exists
             {
                 use_func(@f32_array, @bool_array, @all_modifiers);//Call it
-                //TODO Apply knockback per shot somehow
-            }
-            else
-            {
-                Nu::Error("failure to call function");
+                //TODO Apply knockback per use somehow
             }
 
-            if(shot_sfx != "")
+            if(use_sfx != "")
             {
-                Sound::Play(shot_sfx);//TODO, make sfx better. Have position, volume, pitch as variables. Every client should hear the shots.
+                Sound::Play(use_sfx);//TODO, make sfx better. Have position, volume, pitch as variables. Every client should hear the shots.
             }
         }
 
@@ -727,6 +690,8 @@ namespace it
 
             Modibool reset_charge_on_use = Modibool("reset_charge_on_use", false);//If this is true, current_charge resets to 0.0f once this is used. If this is false, it does nothing.
 
+            bool charge_allowance;//Charge uses can only happen when this is true. This is turned false after a charge use, and is only turned true after the button is triggered again.
+
         //Charging
 
         
@@ -759,18 +724,16 @@ namespace it
 
 
         //SFX
-
-            string shot_sfx;
+            string use_sfx;
             
-            string empty_total_sfx;//When the gun has 0 ammo total but a use is attempted.
-
-            string empty_total_ongoing_sfx;//Out of ammo from ongoing queued up shots
-
+            string empty_total_sfx;//When this has 0 ammo total but a use is attempted.
         //SFX
         
 
     }
 
+    //In order: Modif32@ array handle, Modibool@ array handle, DefaultModifier@ array handle.
+    funcdef void SHOT_CALLBACK(array<Modif32@>@, array<Modibool@>@, array<DefaultModifier@>@);
 
     class item : activatable
     {
@@ -786,11 +749,14 @@ namespace it
 
             AfterInit();
         }
-        void Init()
+        void Init() override
         {
             activatable::Init();
 
+            shot_func = @null;
 
+            shot_sfx = "";
+            empty_total_ongoing_sfx = "";
         }
 
         void setModiVars() override
@@ -816,12 +782,161 @@ namespace it
         }
 
 
-        bool Tick()
+        bool Tick(CControls@ controls) override
         {
-            if(!activatable::Tick()){ return false; }
+            if(!activatable::Tick(@controls)){ return false; }
             
+        
+
+            ShootingLogic();
             return true;
         }
+
+        void DelayLogic(CControls@ controls) override
+        {
+            activatable::DelayLogic(@controls);
+
+            if(shot_afterdelay_left > 0)
+            {
+                shot_afterdelay_left -= 1.0f;
+                if(shot_afterdelay_left < 0.0f){ shot_afterdelay_left = 0.0f; }
+            }
+        }
+
+        u8 ShootingLogic()
+        {
+            //Do shot logic
+            u8 can_shoot_reason = CanShootOnce();
+            if(can_shoot_reason == 1)//No queued up shots
+            {
+                
+            }
+            else if(can_shoot_reason == 2)//delay between shots
+            {
+
+            }
+            else if(can_shoot_reason == 0)//Can shoot
+            {
+                ShootOnce();
+            }
+            else if(can_shoot_reason == 5)//Out of ammo from ongoing queued up shots
+            {
+                //TODO: have a bool that changes how this behaves. If the bool is true; it removes all queued shots. If the bool is false; it behaves like it was shooting normally, just nothing was triggered and no heat was generated.
+                queued_shots = 0;//Remove all queued up shots.
+                if(empty_total_ongoing_sfx != "") { Sound::Play(empty_total_ongoing_sfx); }
+            }
+
+            return can_shoot_reason;
+        }
+
+
+
+        //
+        //Shoot
+        //
+        
+        //Reason
+        //0 == can shoot
+        //1 == no queued shots
+        //2 == delay between shots
+        //5 == out of ammo from ongoing queued up shots
+        u8 CanShootOnce()
+        {
+            if(queued_shots == 0)
+            {
+                return 1;
+            }
+            if(shot_afterdelay_left > 0)
+            {
+                return 2;
+            }
+            if(ammo_count_left - ammo_per_shot[CurrentValue] < 0.0f)//If there is not enough ammo for another shot
+            {
+                return 5;
+            }
+            return 0;
+        }
+
+
+        private SHOT_CALLBACK@ shot_func;//This function gets called when this item is shot
+        void addShotListener(SHOT_CALLBACK@ value)
+        {
+            @shot_func = @value;
+        }
+        
+        void ShootOnce()
+        {
+            ammo_count_left -= ammo_per_shot[CurrentValue];
+            queued_shots -= 1;
+
+            if(shot_afterdelay_left != 0)
+            {
+                Nu::Warning("shot_afterdelay_left was not 0 when shooting (was " + shot_afterdelay_left + "), something somewhere somehow is wrong. Good luck.");
+            }
+            shot_afterdelay_left = shot_afterdelay[CurrentValue];
+            if(ammo_count_left < 0.0f)
+            {
+                Nu::Warning("ammo_count_left went below 0 (was " + ammo_count_left + "), something somewhere somehow is wrong. Good luck.");
+            }
+
+            if(shot_func != @null)//If the function to call exists
+            {
+                shot_func(@f32_array, @bool_array, @all_modifiers);//Call it
+                //TODO Apply knockback per shot somehow
+            }
+
+            if(shot_sfx != "")
+            {
+                Sound::Play(shot_sfx);//TODO, make sfx better. Have position, volume, pitch as variables. Every client should hear the shots.
+            }
+        }
+
+        //
+        //Shoot
+        //
+
+        //
+        //Use
+        //
+
+        u8 CanUseOnce(CControls@ controls, bool encore = true) override
+        {
+            u8 can_use_reason = activatable::CanUseOnce(@controls, false);
+            if(can_use_reason != 0)//Nothing went wrong here?
+            {
+                return can_use_reason;
+            }
+            //Continue
+            if(use_with_queued_shots[CurrentValue] == false && queued_shots != 0)//If this isn't supposed to be used with queued shots, and there are queued shots
+            {
+                return 3;//Can't be used right now
+            }
+            if(use_with_shot_afterdelay[CurrentValue] == false && shot_afterdelay_left != 0)//If this isn't supposed to be used when shot_afterdelay_left is not equal to 0
+            {
+                return 9;//STAP
+            }
+            
+            if(encore)
+            {
+                return CanUsingMode(@controls);
+            }
+            return 0;
+        }
+
+        void UseOnce() override
+        {
+            activatable::UseOnce();
+
+            ammo_count_left += 1.0f;//Revert ammo reduction
+
+            queued_shots += shots_per_use[CurrentValue];//Queue up a shot
+        }
+
+        //
+        //Use
+        //
+
+
 
         Modif32@ morium_cost = Modif32("morium_cost", 0.0f);//Morium cost per use when creating ammo for the activatable. a cost below 0 makes this activatable not rechargable
 
@@ -847,6 +962,15 @@ namespace it
 
         //
         //Shots
+
+
+
+
+        //SFX
+            string shot_sfx;
+
+            string empty_total_ongoing_sfx;//Out of ammo from ongoing queued up shots
+        //SFX
     }
 
 

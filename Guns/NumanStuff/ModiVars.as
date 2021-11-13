@@ -43,6 +43,8 @@ enum WhatValue
     MultiplierValue = 3,
     MultValue = 3,
     AfterAddValue = 4,
+    MaxValue = 5,
+    MinValue = 6,
     ValueCount
 }
 
@@ -99,7 +101,7 @@ class Modif32 : ModiBase
 
 
         //Initialization of the variable
-        value = array<f32>(5);
+        value = array<f32>(7);
         
         value[BaseValue] = default_value;//base value.
         
@@ -111,14 +113,18 @@ class Modif32 : ModiBase
 
         value[AfterAdd] = 0.0f;//after add value; applied after the multiplier value when grabbing the current value.
 
+        value[MinValue] = Nu::s32_min();//Min value that CurrentValue can be
+
+        value[MaxValue] = Nu::s32_max();//Max value that CurrentValue can be
     }
 
     private f32[] value;
 
     f32 getValue()//Return the current value
     {
-        //return the (base value + before add) multiplied by the multiplier value, then the after add value afterwards.
-        return (value[BaseValue] + value[BeforeAdd]) * value[MultValue] + value[AfterAdd];//Don't do this unless any of the values changed for optimization purposes. TODO numan
+        //return the (base value + before add) multiplied by the multiplier value, then the after add value afterwards. Then clamp between min and max values
+        //Don't do this unless any of the values changed for optimization purposes. TODO numan
+        return Maths::Clamp((value[BaseValue] + value[BeforeAdd]) * value[MultValue] + value[AfterAdd], value[MinValue], value[MaxValue]);
     }//If it makes it easier, think of the current value as a temp value, and the base value as the default value.
 
     void setValue(f32 _value)//Sets the base value only. The current value should only be changed by modifiers. For example, a laserpointer is a modifier that applies itself to accuracy, raising it.

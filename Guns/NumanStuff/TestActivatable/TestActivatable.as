@@ -13,26 +13,13 @@ void onInit( CBlob@ this )
     example_thing.max_ammo_count[BaseValue] = 17;//20 max shots
     example_thing.ammo_count_left = example_thing.max_ammo_count[CurrentValue];//20 shots in ammo at this moment
 
-    example_thing.shots_per_use[BaseValue] = 5;//3 Shots per use
-
-    example_thing.shot_afterdelay[BaseValue] = 15;//Half a second per shot
-
     example_thing.using_mode[BaseValue] = 1;//Full auto!
 
-    example_thing.use_with_queued_shots[BaseValue] = false;
-
-    example_thing.shot_sfx = "AssaultFire.ogg";
+    example_thing.use_sfx = "AssaultFire.ogg";
 
     example_thing.empty_total_sfx = "BulletImpact.ogg";
 
-    example_thing.empty_total_ongoing_sfx = "ShellDrop.ogg";
-
     example_thing.use_afterdelay[BaseValue] = 4;
-
-    example_thing.no_ammo_no_shots[BaseValue] = false;
-
-    example_thing.use_with_shot_afterdelay[BaseValue] = false;
-
 
 
 
