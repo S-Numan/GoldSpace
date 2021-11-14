@@ -1074,15 +1074,11 @@ namespace it
         {
             item::ShootOnce(false);//Do not call the function
 
-            s8 flip_deviation;
-
             if(call_func && shot_func != @null)//If the function to call exists
             {
-                flip_deviation = (rnd.Next() % 2 == 0) ? -1 : 1; 
-                f32 random_deviation = Nu::getRandomF32(0, random_shot_spread[CurrentValue] * 0.5f) * flip_deviation;
+                f32 random_deviation = Nu::getRandomF32(random_shot_spread[CurrentValue] * -0.5, (random_shot_spread[CurrentValue] * 0.5f));
 
-                flip_deviation = (rnd.Next() % 2 == 0) ? -1 : 1;
-                f32 random_aim = Nu::getRandomF32(0, current_spread * 0.5f) * flip_deviation;
+                f32 random_aim = Nu::getRandomF32(current_spread * -0.5f, current_spread * 0.5f);
 
                 print("\nrandom_deviation = " + random_deviation);
                 print("current_spread = " + current_spread);
