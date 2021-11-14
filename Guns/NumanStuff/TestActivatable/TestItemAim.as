@@ -81,6 +81,12 @@ void onTick( CBlob@ this )
         return;//Stop
     }
     example_thing.Tick(@controls);
+
+    Vec2f direction;
+    print("a");
+    this.getAimDirection(direction);
+    print("x = " + direction.x);
+    print("y = " + direction.y);
 }
 
 
