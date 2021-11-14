@@ -791,28 +791,34 @@ namespace it
 
         u8 ShootingLogic()
         {
-            //Do shot logic
-            u8 can_shoot_reason = CanShootOnce();
-            if(can_shoot_reason == 1)//No queued up shots
+            while(true)//For shooting several queued shots in one tick
             {
-                
-            }
-            else if(can_shoot_reason == 2)//delay between shots
-            {
+                //Do shot logic
+                u8 can_shoot_reason = CanShootOnce();
+                if(can_shoot_reason == 1)//No queued up shots
+                {
+                    
+                }
+                else if(can_shoot_reason == 2)//delay between shots
+                {
 
-            }
-            else if(can_shoot_reason == 0)//Can shoot
-            {
-                ShootOnce();
-            }
-            else if(can_shoot_reason == 5)//Out of ammo from ongoing queued up shots
-            {
-                //TODO: have a bool that changes how this behaves. If the bool is true; it removes all queued shots. If the bool is false; it behaves like it was shooting normally, just nothing was triggered and no heat was generated.
-                queued_shots = 0;//Remove all queued up shots.
-                if(empty_total_ongoing_sfx != "") { Sound::Play(empty_total_ongoing_sfx); }
+                }
+                else if(can_shoot_reason == 0)//Can shoot
+                {
+                    ShootOnce();
+                    if(shot_afterdelay_left == 0){ continue; }//If there is literally no shot_afterdelay, shoot again right here right now.
+                }
+                else if(can_shoot_reason == 5)//Out of ammo from ongoing queued up shots
+                {
+                    //TODO: have a bool that changes how this behaves. If the bool is true; it removes all queued shots. If the bool is false; it behaves like it was shooting normally, just nothing was triggered and no heat was generated.
+                    queued_shots = 0;//Remove all queued up shots.
+                    if(empty_total_ongoing_sfx != "") { Sound::Play(empty_total_ongoing_sfx); }
+                }
+
+                return can_shoot_reason;
             }
 
-            return can_shoot_reason;
+            return 255;
         }
 
 
