@@ -710,6 +710,7 @@ namespace it
             shot_func = @null;
             queued_shots = 0;
             shot_afterdelay_left = 0;
+            last_shot = Nu::u32_max();
 
             shot_sfx = "";
             empty_total_ongoing_sfx = "";
@@ -767,8 +768,6 @@ namespace it
         bool Tick(CControls@ controls) override
         {
             if(!activatable::Tick(@controls)){ return false; }
-            
-        
 
             ShootingLogic();
             return true;
@@ -777,6 +776,11 @@ namespace it
         void DelayLogic(CControls@ controls) override
         {
             activatable::DelayLogic(@controls);
+
+            if(last_shot != Nu::u32_max())
+            {
+                last_shot++;
+            }
 
             if(shot_afterdelay_left > 0)
             {
@@ -850,6 +854,7 @@ namespace it
         {
             ammo_count_left -= ammo_per_shot[CurrentValue];
             queued_shots -= 1;
+            last_shot = 0;
 
             if(shot_afterdelay_left != 0)
             {
@@ -973,6 +978,8 @@ namespace it
             //AMOUNT
 
 
+            u32 last_shot;//How many ticks ago was the last shot.
+
 
 
 
@@ -1065,7 +1072,11 @@ namespace it
             {
                 current_spread = min_shot_spread[CurrentValue];
             }
-            
+            //If gone above max_shot_spread, set current_spread to max_shot_spread
+            if(current_spread > max_shot_spread[CurrentValue])
+            {
+                current_spread = max_shot_spread[CurrentValue];
+            }
         }
 
 
