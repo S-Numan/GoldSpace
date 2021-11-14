@@ -155,7 +155,6 @@ namespace it
 
         void BaseValueChanged()//Called if a base value is changed.
         {
-            print("basemodistore base value changed");
             //RefreshPassiveModifiers();
         }
         
@@ -385,7 +384,6 @@ namespace it
         void BaseValueChanged() override//Called if a base value is changed.
         {
             basemodistore::BaseValueChanged();
-            print("activatable base value changed");
         }
 
         void DebugVars()
@@ -754,7 +752,6 @@ namespace it
         void BaseValueChanged() override//Called if a base value is changed.
         {
             activatable::BaseValueChanged();
-            print("item base value changed");
         }
         
         void DebugVars() override
@@ -1046,13 +1043,11 @@ namespace it
         void BaseValueChanged() override//Called if a base value is changed.
         {
             item::BaseValueChanged();
-            print("itemaim base value changed");
         }
         
         void DebugVars() override
         {
             item::DebugVars();
-            print("current_spread = " + current_spread);
         }
 
 
