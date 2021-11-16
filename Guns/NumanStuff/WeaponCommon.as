@@ -77,6 +77,8 @@ namespace it
 
             ticks_since_created = Nu::u32_max();
 
+            debug_color = SColor(255, 25, 255, 25);
+
             @f32_array = @array<Modif32@>();
 
             @bool_array = @array<Modibool@>();
@@ -113,12 +115,14 @@ namespace it
             }
         }
 
-        bool Tick(CControls@ controls)
+        bool Tick(CRules@ rules, CControls@ controls)
         {
             ticks_since_created++;
             
             return true;
         }
+
+        SColor debug_color;
 
         array<Modif32@>@ f32_array;
 
@@ -182,28 +186,28 @@ namespace it
         void DebugModiVars(bool full_data = false)
         {
             u16 i;
-            print("f32 vars\n");
+            print("f32 vars\n", debug_color);
             for(i = 0; i < f32_array.size(); i++)
             {
                 if(f32_array[i] == @null) { Nu::Error("Weird problem2, f32_array thing was null at " + i); continue; }
-                print("Name[" + i + "] = " + f32_array[i].getName());
-                print("BaseValue = " + f32_array[i][BaseValue]);
-                print("CurrentValue = " + f32_array[i][CurrentValue]);
+                print("Name[" + i + "] = " + f32_array[i].getName(), debug_color);
+                print("BaseValue = " + f32_array[i][BaseValue], debug_color);
+                print("CurrentValue = " + f32_array[i][CurrentValue], debug_color);
                 if(full_data)
                 {
-                    print("BeforeAdd = " + f32_array[i][BeforeAdd]);
-                    print("MultValue = " + f32_array[i][MultValue]);
-                    print("AfterAdd = " + f32_array[i][AfterAdd]);
+                    print("BeforeAdd = " + f32_array[i][BeforeAdd], debug_color);
+                    print("MultValue = " + f32_array[i][MultValue], debug_color);
+                    print("AfterAdd = " + f32_array[i][AfterAdd], debug_color);
                 }
                 print("");
             }
-            print("bool vars\n");
+            print("bool vars\n", debug_color);
             for(i = 0; i < bool_array.size(); i++)
             {
                 if(bool_array[i] == @null) { Nu::Error("Weird problem2, bool_array thing was null at " + i); continue; }
-                print("Name[" + i + "] = " + bool_array[i].getName());
-                print("BaseValue = " + bool_array[i][BaseValue]);
-                print("CurrentValue = " + bool_array[i][CurrentValue]);
+                print("Name[" + i + "] = " + bool_array[i].getName(), debug_color);
+                print("BaseValue = " + bool_array[i][BaseValue], debug_color);
+                print("CurrentValue = " + bool_array[i][CurrentValue], debug_color);
                 if(full_data)
                 {
 
@@ -304,7 +308,7 @@ namespace it
             print("all tags\n");
             for(u16 i = 0; i < tag_array.size(); i++)
             {
-                print("tag_array[" + i + "] == " + tag_array[i]);
+                print("tag_array[" + i + "] == " + tag_array[i], debug_color);
             }
         }
 
@@ -330,10 +334,11 @@ namespace it
             use_func = @null;
             use_afterdelay_left = 0;
             use_delay_left = 0;
-            ammo_count_left = 0;
+            ammo_left = 0;
+            
             current_charge = 0;
             charge_allowance = false;
-            currently_charging = false;
+            stop_discharge = false;
 
             use_sfx = "";
             empty_total_sfx = "";
@@ -364,7 +369,7 @@ namespace it
             f32_array.push_back(@use_afterdelay);
             //f32_array.push_back(@use_delay);//Disabled for being confusing to program.
         
-            f32_array.push_back(@max_ammo_count);
+            f32_array.push_back(@max_ammo);
 
             f32_array.push_back(@using_mode);
 
@@ -390,20 +395,27 @@ namespace it
 
         void DebugVars()
         {
-            print("use_afterdelay_left = " + use_afterdelay_left);
-            print("use_delay_left = " + use_delay_left);
-            print("ammo_count_left = " + ammo_count_left);
-            print("currently_charging = " + currently_charging);
-            print("current_charge = " + current_charge);
+            print("use_afterdelay_left = " + use_afterdelay_left, debug_color);
+            print("use_delay_left = " + use_delay_left, debug_color);
+            print("ammo_left = " + getAmmoLeft(), debug_color);
+            print("stop_discharge = " + getStopDischarge(), debug_color);
+            print("current_charge = " + getCurrentCharge(), debug_color);
         }
 
+        /*CBitStream@ SyncVars(CRules@ rules)
+        {
+            CBitStream@ params;
+            params.write_f32(getAmmoLeft());
+            params.write_bool(getStopDischarge());
+            rules.SendCommand(rules.getCommandID("SyncActive"), CBitStream&in params, CPlayer@ player)
+        }*/
 
         
 
 
-        bool Tick(CControls@ controls) override
+        bool Tick(CRules@ rules, CControls@ controls) override
         {
-            if(!basemodistore::Tick(controls)){ return false; }
+            if(!basemodistore::Tick(@rules, @controls)){ return false; }
 
             DelayLogic(@controls);
 
@@ -417,16 +429,17 @@ namespace it
         {
             u8 can_use_basic = CanUseOnce(@controls, false);
             //Charging
-            if(!currently_charging && current_charge > 0//If this is not currently charging, and current charge is more than 0
+            if(!getStopDischarge() && getCurrentCharge() > 0//If this is not currently charging, and current charge is more than 0
             && can_use_basic == 0)//and the base level of CanUseOnce allows being used. Note that this is done before the other delay lowerings. That makes it not lower until a tick after the other delays have reached 0.
             {
-                current_charge -= charge_down_per_tick[CurrentValue];//Lower current_charge by charge_down_per_tick
-                if(current_charge < 0.0f){ current_charge = 0.0f; }//If current_charge goes below 0, set it to 0
+                setCurrentCharge(getCurrentCharge() - charge_down_per_tick[CurrentValue], false);//Lower current_charge by charge_down_per_tick
+                if(getCurrentCharge() < 0.0f){ setCurrentCharge(0.0f, false); }//If current_charge goes below 0, set it to 0
+                syncCurrentCharge();
             }
 
-            if(currently_charging)//If this is currently charging
+            if(getStopDischarge())//If this is currently charging
             {
-                currently_charging = false;//This is no longer charging.
+                setStopDischarge(false);//This is no longer charging.
             }
 
             if(!charge_allowance//If charge allowance is false
@@ -470,11 +483,12 @@ namespace it
             || (charge_during_use[CurrentValue] && controls.isKeyPressed(KEY_LBUTTON)))//Or charge_during_use is true and the left button is being pressed.
             {
                 f32 _charge_up_time = charge_up_time[CurrentValue];//Get charge_up_time is a temp variable
-                if(current_charge != _charge_up_time)//If current_charge is not equal to charge up time
+                if(getCurrentCharge() != _charge_up_time)//If current_charge is not equal to charge up time
                 {
-                    current_charge += 1.0f;//Add one to it
-                    if(current_charge > charge_up_time[CurrentValue]) { current_charge = charge_up_time[CurrentValue]; }//If current_charge went past charge_up_time, set it to charge_up_time
-                    currently_charging = true;//This is currently charging
+                    setCurrentCharge(getCurrentCharge() + 1.0f, false);//Add one to it
+                    if(getCurrentCharge() > charge_up_time[CurrentValue]) { setCurrentCharge(charge_up_time[CurrentValue], false); }//If current_charge went past charge_up_time, set it to charge_up_time
+                    syncCurrentCharge();
+                    setStopDischarge(true);//This is currently charging
                 }
             }
 
@@ -482,9 +496,9 @@ namespace it
             {
                 UseOnce();
             }
-            else if(can_use_reason == 11)//Presing button, semi auto, but charge_allowance is false.
+            else if(can_use_reason == 11)//Pressing button, but charge_allowance is false.
             {
-                currently_charging = true;//To prevent charge from going down when holding on semi-auto? I think.
+                setStopDischarge(true);//To prevent charge from going down when holding on semi-auto? I think.
             }
             else if(can_use_reason == 4//no_ammo_no_shots is true, and the current amount of shots plus the amount that would be added went past max ammo. There are no current queued shots
             || can_use_reason == 7)//Or there is simply no ammo left
@@ -500,7 +514,7 @@ namespace it
                 error("TEST! REMOVE ME LATER");
             }
 
-            //print("current_charge = " + current_charge);
+            //print("current_charge = " + getCurrentCharge());
             //print("can_use_reason = " + can_use_reason);
 
             return can_use_reason;
@@ -586,7 +600,7 @@ namespace it
                 (return_value == 0 || return_value == 12))//If the button is being triggered, or the button is pressed but the using_mode doesn't allow firing.
             {
                 if(!allow_non_charged_shots[CurrentValue]//If this cannot shoot non charged shots
-                    && current_charge != charge_up_time[CurrentValue])//and current_charge is not adequate.
+                    && getCurrentCharge() != charge_up_time[CurrentValue])//and current_charge is not adequate.
                 {
                     return 10;//Back out of there
                 }
@@ -604,7 +618,7 @@ namespace it
 
             if(return_value == 0)//If this was going to return true
             {
-                if(ammo_count_left == 0.0f)//And there was no ammo left
+                if(getAmmoLeft() == 0.0f)//And there was no ammo left
                 {
                     return 7;//Nada
                 }
@@ -645,11 +659,12 @@ namespace it
         
             if(ammo_too)
             {
-                ammo_count_left -= 1.0f;
+                setAmmoLeft(getAmmoLeft() - 1.0f);
             }
 
-            current_charge -= charge_down_per_use[CurrentValue];
-            if(current_charge < 0) { current_charge = 0.0f; }
+            setCurrentCharge(getCurrentCharge() - charge_down_per_use[CurrentValue], false);
+            if(getCurrentCharge() < 0) { setCurrentCharge(0.0f, false); }
+            syncCurrentCharge();
             
             if(charge_allowance && using_mode[CurrentValue] != 1)//If charge_allowance is true, and the using_mode is not full auto
             {
@@ -673,10 +688,22 @@ namespace it
         f32 use_delay_left;
 
 
-        Modif32@ max_ammo_count = Modif32("max_ammo_count", 1.0f);//Max amount of times this can be used
+        Modif32@ max_ammo = Modif32("max_ammo", 1.0f);//Max amount of times this can be used
 
-        f32 ammo_count_left;
-
+        private f32 ammo_left;
+        f32 getAmmoLeft()
+        {
+            return ammo_left;
+        }
+        void setAmmoLeft(f32 value, bool sync_value = true)
+        {
+            ammo_left = value;
+            if(sync_value){ syncAmmoLeft(); }
+        }
+        void syncAmmoLeft()
+        {
+            //TODO: sync somehow.
+        }
         
         Modif32@ knockback_per_use = Modif32("knockback_per_use", 0.0f);//pushes you around when activated, specifically it pushes you away from the direction your mouse is aiming.
 
@@ -686,15 +713,41 @@ namespace it
     
             Modif32@ charge_up_time = Modif32("charge_up_time", 0.0f);//Time the player must be holding the use button to activate a use of this. Think spinup time for a minigun.
 
-            float current_charge;//Value that stores the current charge
+            private float current_charge;//Value that stores the current charge
+            f32 getCurrentCharge()
+            {
+                return current_charge;
+            }
+            void setCurrentCharge(f32 value, bool sync_value = true)
+            {
+                current_charge = value;
+                if(sync_value) { syncCurrentCharge(); }
+            }
+            void syncCurrentCharge()
+            {
 
-            bool currently_charging;//Value that stores if this is currently being charged
+            }
+
+            private bool stop_discharge;//When this is true, charge_down_per_tick will not lower current_charge
+            bool getStopDischarge()
+            {
+                return stop_discharge;
+            }
+            void setStopDischarge(bool value, bool sync_value = true)
+            {
+                stop_discharge = value;
+                if(sync_value) { syncStopDischarge(); }
+            }
+            void syncStopDischarge()
+            {
+                
+            }
 
             Modif32@ charge_down_per_tick = Modif32("charge_down_per_tick", 1.0f);//Amount the float above charge_up_time is subtracted by every tick. Does not take effect while charging up.
 
             Modif32@ charge_down_per_use = Modif32("charge_down_per_use", 99999.0f);//How much charge goes down per tick. Charge does not go below 0.
 
-            Modibool@ allow_non_charged_shots = Modibool("allow_non_charged_shots", false);//If this is false, this cannot shoot until currently_charged is equal to charge_up_time. If this is true, this can shoot independently of how much charge this has.
+            Modibool@ allow_non_charged_shots = Modibool("allow_non_charged_shots", false);//If this is false, this cannot shoot until current_charge is equal to charge_up_time. If this is true, this can shoot independently of how much charge this has.
 
             bool charge_allowance;//Charge uses can only happen when this is true. This is turned false after a charge use, and is only turned true after the button is triggered again.
 
@@ -771,14 +824,14 @@ namespace it
         void DebugVars() override
         {
             activatable::DebugVars();
-            print("queued_shots = " + queued_shots);
-            print("shot_afterdelay_left = " + shot_afterdelay_left);
+            print("queued_shots = " + queued_shots, debug_color);
+            print("shot_afterdelay_left = " + shot_afterdelay_left, debug_color);
         }
 
 
-        bool Tick(CControls@ controls) override
+        bool Tick(CRules@ rules, CControls@ controls) override
         {
-            if(!activatable::Tick(@controls)){ return false; }
+            if(!activatable::Tick(@rules, @controls)){ return false; }
 
             ShootingLogic();
             return true;
@@ -853,7 +906,7 @@ namespace it
             {
                 return 2;
             }
-            if(ammo_count_left - ammo_per_shot[CurrentValue] < 0.0f)//If there is not enough ammo for another shot
+            if(getAmmoLeft() - ammo_per_shot[CurrentValue] < 0.0f)//If there is not enough ammo for another shot
             {
                 return 5;
             }
@@ -869,7 +922,7 @@ namespace it
         
         void ShootOnce(bool call_func = true)
         {
-            ammo_count_left -= ammo_per_shot[CurrentValue];
+            setAmmoLeft(getAmmoLeft() - ammo_per_shot[CurrentValue]);
             queued_shots -= 1;
             last_shot = 0;
 
@@ -878,9 +931,9 @@ namespace it
                 Nu::Warning("shot_afterdelay_left was not 0 when shooting (was " + shot_afterdelay_left + "), something somewhere somehow is wrong. Good luck.");
             }
             shot_afterdelay_left = shot_afterdelay[CurrentValue];
-            if(ammo_count_left < 0.0f)
+            if(getAmmoLeft() < 0.0f)
             {
-                Nu::Warning("ammo_count_left went below 0 (was " + ammo_count_left + "), something somewhere somehow is wrong. Good luck.");
+                Nu::Warning("ammo_left went below 0 (was " + getAmmoLeft() + "), something somewhere somehow is wrong. Good luck.");
             }
 
             if(call_func && shot_func != @null)//If the function to call exists
@@ -924,14 +977,14 @@ namespace it
             return 0;
         }
 
-        u8 CanTrigger(CControls@ controls)
+        u8 CanTrigger(CControls@ controls) override
         {
             u8 return_value = activatable::CanTrigger(@controls);
             if(return_value == 0)//If this was going to return true
             {
                 //No ammo logic.
                 if(no_ammo_no_shots[CurrentValue] == true//and if no_ammo_no_shots is true
-                && queued_shots * ammo_per_shot[CurrentValue] + shots_per_use[CurrentValue] * ammo_per_shot[CurrentValue] > ammo_count_left)//and if the current amount of shots plus the amount that would be added would go past max ammo.
+                && queued_shots * ammo_per_shot[CurrentValue] + shots_per_use[CurrentValue] * ammo_per_shot[CurrentValue] > getAmmoLeft())//and if the current amount of shots plus the amount that would be added would go past max ammo.
                 {
                     if(queued_shots != 0)//Queued shots still going on?
                     {
@@ -984,7 +1037,7 @@ namespace it
 
                 Modibool@ use_with_shot_afterdelay = Modibool("use_with_shot_afterdelay", false);//When this is false, you cannot use the weapon when shot afterdelay is not 0. When this is true, you can queue up more shots with less care.
 
-                Modibool@ no_ammo_no_shots = Modibool("no_ammo_no_shots", true);//If this is true, using this wont setup queued shots if the amount of queued up shots left would pass ammo_count_left. If this is false, it will glady setup 3 shots even if there is only 2 ammo left.
+                Modibool@ no_ammo_no_shots = Modibool("no_ammo_no_shots", true);//If this is true, using this wont setup queued shots if the amount of queued up shots left would pass ammo_left. If this is false, it will glady setup 3 shots even if there is only 2 ammo left.
                 
                 Modif32@ shot_afterdelay = Modif32("shot_afterdelay", 0.0f);//Only relevant if the stat above is more than 0
                 float shot_afterdelay_left;
@@ -1062,9 +1115,9 @@ namespace it
         }
 
 
-        bool Tick(CControls@ controls) override
+        bool Tick(CRules@ rules, CControls@ controls) override
         {
-            if(!item::Tick(@controls)){ return false; }
+            if(!item::Tick(@rules, @controls)){ return false; }
 
             return true;
         }

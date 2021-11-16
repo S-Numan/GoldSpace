@@ -13,8 +13,8 @@ void onInit( CBlob@ this )
 
     example_thing.addShotListener(@onShot);
     
-    example_thing.max_ammo_count[BaseValue] = 17;//20 max shots
-    example_thing.ammo_count_left = example_thing.max_ammo_count[CurrentValue];//20 shots in ammo at this moment
+    example_thing.max_ammo[BaseValue] = 17;
+    example_thing.setAmmoLeft(example_thing.max_ammo[CurrentValue]);
 
     example_thing.shots_per_use[BaseValue] = 5;//3 Shots per use
 
@@ -71,7 +71,7 @@ void onTick( CBlob@ this )
     if(controls == @null){//Controls doesn't exist/
         return;//Stop
     }
-    example_thing.Tick(@controls);
+    example_thing.Tick(getRules(), @controls);
 }
 
 
