@@ -39,7 +39,7 @@ void onInit( CBlob@ this )
 
     example_thing.use_with_shot_afterdelay[BaseValue] = false;
 
-    example_thing.reset_charge_on_use[BaseValue] = true;
+    //example_thing.charge_down_per_use[BaseValue] = 0.0f;
 
     example_thing.charge_up_time[BaseValue] = 10;
 

@@ -20,8 +20,8 @@ void onInit( CBlob@ this )
 
     example_thing.shot_afterdelay[BaseValue] = 15;//Half a second per shot
 
-    example_thing.using_mode[BaseValue] = 1;//Full auto!
-    //example_thing.using_mode[BaseValue] = 2;//use on release
+    //example_thing.using_mode[BaseValue] = 1;//Full auto!
+    example_thing.using_mode[BaseValue] = 2;//use on release
 
     example_thing.use_with_queued_shots[BaseValue] = false;
 
@@ -39,12 +39,15 @@ void onInit( CBlob@ this )
 
     example_thing.use_with_shot_afterdelay[BaseValue] = false;
 
-    example_thing.reset_charge_on_use[BaseValue] = true;
+    example_thing.charge_down_per_use[BaseValue] = 0.0f;
 
     example_thing.charge_up_time[BaseValue] = 10;
 
-    example_thing.charge_down_per_tick[BaseValue] = 0.5f;
+    example_thing.charge_down_per_tick[BaseValue] = 0.2f;
 
+    example_thing.allow_non_charged_shots[BaseValue] = true;
+
+    example_thing.charge_during_use[BaseValue] = true;
 
 
 
@@ -70,10 +73,11 @@ void onTick( CBlob@ this )
     if(!this.isAttached()){//Not attached?
         return;//Stop
     }
-    if(getLocalPlayerBlob() == @null){//Player blob doesn't exist?
+    CBlob@ plob = @getLocalPlayerBlob();
+    if(plob == @null){//Player blob doesn't exist?
         return;//Stop
     }
-    if(!this.isAttachedTo(getLocalPlayerBlob())){//Not attached to the local player?
+    if(!this.isAttachedTo(@plob)){//Not attached to the local player?
         return;//Stop
     }
     CControls@ controls = getControls();
@@ -81,12 +85,41 @@ void onTick( CBlob@ this )
         return;//Stop
     }
     example_thing.Tick(@controls);
+    print("charge = " + example_thing.current_charge);
 
     Vec2f direction;
-    print("a");
-    this.getAimDirection(direction);
-    print("x = " + direction.x);
-    print("y = " + direction.y);
+    //print("a");
+    //this.getAimDirection(direction);
+    //direction = this.getAimPos();
+    
+    plob.getAimDirection(direction);
+    //for x -1 is left
+    //for x 1 is right
+    //for y -1 is up
+    //for y 1 is down
+
+    Vec2f aimpos = plob.getAimPos();//Controller
+	Vec2f pos = plob.getPosition();//Held thing?
+	Vec2f aimVec = aimpos - pos;
+    f32 distance1 = aimVec.Normalize();
+    f32 distance2 = (aimpos - pos).getLength();
+    
+    //print("aimangle1 = " + getAimAngle(plob, plob));
+
+    //print("aimangle2 = " + aimVec.getAngleDegrees());
+    //print("x = " + distance);
+    //print("y = " + aimVec.y);
+
+
+    //print("x = " + direction.x);
+    //print("y = " + direction.y);
+}
+
+
+f32 getAimAngle(CBlob@ this, CBlob@ holder)
+{
+ 	Vec2f aimvector = holder.getAimPos() - this.getInterpolatedPosition();
+	return holder.isFacingLeft() ? -aimvector.Angle()+180.0f : -aimvector.Angle();
 }
 
 

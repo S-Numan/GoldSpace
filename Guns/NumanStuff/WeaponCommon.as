@@ -375,7 +375,9 @@ namespace it
             //Charging
             f32_array.push_back(@charge_up_time);
             f32_array.push_back(@charge_down_per_tick);
-            bool_array.push_back(@reset_charge_on_use);
+            f32_array.push_back(@charge_down_per_use);
+            bool_array.push_back(@allow_non_charged_shots);
+            bool_array.push_back(@charge_during_use);
 
             //MISC
             bool_array.push_back(@remove_on_empty);
@@ -413,12 +415,36 @@ namespace it
 
         void DelayLogic(CControls@ controls)
         {
+            u8 can_use_basic = CanUseOnce(@controls, false);
+            //Charging
             if(!currently_charging && current_charge > 0//If this is not currently charging, and current charge is more than 0
-            && CanUseOnce(@controls, false) == 0)//and the base level of CanUseOnce allows being used. Note that this is done before the other delay lowerings. That makes it not lower until a tick after the other delays have reached 0.
+            && can_use_basic == 0)//and the base level of CanUseOnce allows being used. Note that this is done before the other delay lowerings. That makes it not lower until a tick after the other delays have reached 0.
             {
                 current_charge -= charge_down_per_tick[CurrentValue];//Lower current_charge by charge_down_per_tick
                 if(current_charge < 0.0f){ current_charge = 0.0f; }//If current_charge goes below 0, set it to 0
             }
+
+            if(currently_charging)//If this is currently charging
+            {
+                currently_charging = false;//This is no longer charging.
+            }
+
+            if(!charge_allowance//If charge allowance is false
+                && can_use_basic == 0)//and CanUseOnce allows being used
+            {
+                if(using_mode[CurrentValue] != 2)//If using_mode is not on release
+                {
+                    if(controls.isKeyJustPressed(KEY_LBUTTON))//Left button just pressed?
+                    {
+                        charge_allowance = true;//Charge allowance.
+                    }
+                } 
+                else if(controls.isKeyJustReleased(KEY_LBUTTON))//using_mode is on release, and left button was just released
+                {
+                    charge_allowance = true;
+                }
+            }
+            //Charging
 
             if(use_afterdelay_left > 0)
             {
@@ -437,33 +463,11 @@ namespace it
         {
             //Gather variables
             //bool left_button = controls.isKeyPressed(KEY_LBUTTON);
-            //bool left_button_release = controls.isKeyJustReleased(KEY_LBUTTON);
-            bool left_button_just = controls.isKeyJustPressed(KEY_LBUTTON);
-
-            if(currently_charging)//If this is currently charging
-            {
-                currently_charging = false;//This is no longer charging.
-            }
-
-            if(left_button_just && !charge_allowance)//If the button was just pressed and charge_allowance was false
-            {
-                charge_allowance = true;//Charge allowanc
-            }
 
             u8 can_use_reason = CanUseOnce(@controls);
 
-            //print("current_charge = " + current_charge);
-            //print("can_use_reason = " + can_use_reason);
-
-            if(can_use_reason == 0)//Use logic
-            {
-                UseOnce();
-            }
-            else if(can_use_reason == 11)//Presing button, semi auto, but charge_allowance is false.
-            {
-                currently_charging = true;
-            }
-            else if(can_use_reason == 10)//current_charge is not equal to the required charge_up_time
+            if(can_use_reason == 10// if current_charge is not equal to the required charge_up_time
+            || (charge_during_use[CurrentValue] && controls.isKeyPressed(KEY_LBUTTON)))//Or charge_during_use is true and the left button is being pressed.
             {
                 f32 _charge_up_time = charge_up_time[CurrentValue];//Get charge_up_time is a temp variable
                 if(current_charge != _charge_up_time)//If current_charge is not equal to charge up time
@@ -472,6 +476,15 @@ namespace it
                     if(current_charge > charge_up_time[CurrentValue]) { current_charge = charge_up_time[CurrentValue]; }//If current_charge went past charge_up_time, set it to charge_up_time
                     currently_charging = true;//This is currently charging
                 }
+            }
+
+            if(can_use_reason == 0)//Use logic
+            {
+                UseOnce();
+            }
+            else if(can_use_reason == 11)//Presing button, semi auto, but charge_allowance is false.
+            {
+                currently_charging = true;//To prevent charge from going down when holding on semi-auto? I think.
             }
             else if(can_use_reason == 4//no_ammo_no_shots is true, and the current amount of shots plus the amount that would be added went past max ammo. There are no current queued shots
             || can_use_reason == 7)//Or there is simply no ammo left
@@ -486,6 +499,9 @@ namespace it
             {
                 error("TEST! REMOVE ME LATER");
             }
+
+            //print("current_charge = " + current_charge);
+            //print("can_use_reason = " + can_use_reason);
 
             return can_use_reason;
         }
@@ -506,7 +522,7 @@ namespace it
         //9 == shot afterdelay is not equal to 0 and use_with_shot_afterdelay is false
         //10 == current charge is not adequate, and button is being pressed.
         //11 == presing button, semi auto, but charge_allowance is false.
-        //12 == semi auto button pressed
+        //12 == button is pressed but the using_mode doesn't allow firing
         u8 CanUseOnce(CControls@ controls, bool encore = true)
         {
             if(use_afterdelay_left != 0.0f)//If use afterdelay is not over
@@ -543,7 +559,7 @@ namespace it
             {
                 if(button_release)//If button release
                 {
-                    return_value = 50;//Indeed. used on release.
+                    return_value = 0;//Indeed. used on release.
                 }
             }
             else if(using_mode[CurrentValue] == 1)//If full auto
@@ -557,38 +573,34 @@ namespace it
             {
                 return_value = 0;
             }
-            else if(button_press)
+            
+            if(return_value != 0//According to use mode, this cannot be fired
+                && button_press)//Butt the button is being pressed.
             {
-                return_value = 12;//Semi auto button pressed
+                return_value = 12;//button is pressed but the using_mode doesn't allow firing
             }
-            //
 
             //Charging
 
             if(charge_up_time[CurrentValue] != 0 &&//If charging is enabled
-                (return_value == 0 || return_value == 12 || return_value == 50))//If the button is being triggered, button is semi_auto and is being pressed, or this was used on released on release using_mode.
+                (return_value == 0 || return_value == 12))//If the button is being triggered, or the button is pressed but the using_mode doesn't allow firing.
             {
-                if(current_charge != charge_up_time[CurrentValue])//If current_charge is not adequate.
+                if(!allow_non_charged_shots[CurrentValue]//If this cannot shoot non charged shots
+                    && current_charge != charge_up_time[CurrentValue])//and current_charge is not adequate.
                 {
                     return 10;//Back out of there
                 }
-                //there is enough charge
-                
-                if(charge_allowance)//charge_allowance was true, so it is allowed
+                //Can shoot
+                else if(charge_allowance)//charge_allowance was true, so it is allowed
                 {
                     return_value = 0;//Forward!
                 }
                 else//Charge allowance is false
                 {
-                    return_value = 11;//Presing button, semi auto, but charge_allowance is false.
+                    return_value = 11;//Presing button, but charge_allowance is false.
                 }
             }
             //Charging
-
-            if(return_value == 50)
-            {
-                return_value = 0;
-            }
 
             if(return_value == 0)//If this was going to return true
             {
@@ -636,12 +648,10 @@ namespace it
                 ammo_count_left -= 1.0f;
             }
 
-            if(reset_charge_on_use[CurrentValue])
-            {
-                current_charge = 0.0f;
-            }
+            current_charge -= charge_down_per_use[CurrentValue];
+            if(current_charge < 0) { current_charge = 0.0f; }
             
-            if(charge_allowance && using_mode[CurrentValue] == 0)//If charge_allowance is true, and the using mode is semi auto.
+            if(charge_allowance && using_mode[CurrentValue] != 1)//If charge_allowance is true, and the using_mode is not full auto
             {
                 charge_allowance = false;//No more charge allowance
             }
@@ -682,9 +692,13 @@ namespace it
 
             Modif32@ charge_down_per_tick = Modif32("charge_down_per_tick", 1.0f);//Amount the float above charge_up_time is subtracted by every tick. Does not take effect while charging up.
 
-            Modibool reset_charge_on_use = Modibool("reset_charge_on_use", false);//If this is true, current_charge resets to 0.0f once this is used. If this is false, it does nothing.
+            Modif32@ charge_down_per_use = Modif32("charge_down_per_use", 99999.0f);//How much charge goes down per tick. Charge does not go below 0.
+
+            Modibool@ allow_non_charged_shots = Modibool("allow_non_charged_shots", false);//If this is false, this cannot shoot until currently_charged is equal to charge_up_time. If this is true, this can shoot independently of how much charge this has.
 
             bool charge_allowance;//Charge uses can only happen when this is true. This is turned false after a charge use, and is only turned true after the button is triggered again.
+
+            Modibool@ charge_during_use = Modibool("charge_during_use", false);//If this is true, this continues charging even when in use and not being able to use again. If this is false, this retains it's charge after using, but does not go higher or lower. 
 
         //Charging
 
@@ -892,10 +906,7 @@ namespace it
         u8 CanUseOnce(CControls@ controls, bool encore = true) override
         {
             u8 can_use_reason = activatable::CanUseOnce(@controls, false);
-            if(can_use_reason != 0)//Nothing went wrong here?
-            {
-                return can_use_reason;
-            }
+            if(can_use_reason != 0) { return can_use_reason; }//If something was wrong previously, just stop there.
             //Continue
             if(use_with_queued_shots[CurrentValue] == false && queued_shots != 0)//If this isn't supposed to be used with queued shots, and there are queued shots
             {
