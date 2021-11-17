@@ -14,6 +14,9 @@ void onInit( CRules@ this )
 {
     onRestart(this);
 
+    u_shownames = false;
+
+
     this.set_f32("gravity_mult", 0.5f);
     this.set_u8("map_type", 0);//0 for space. 1 for underground
     
@@ -45,7 +48,7 @@ void onTick( CRules@ this )
                 CPlayer@ player = getPlayer(i);
                 if(player == @null) { Nu::Error("player was null when respawning in rules."); continue; }
 
-                Nu::RespawnPlayer(this, player, "knight");
+                Nu::RespawnPlayer(this, player, "human");
             }
         }
     }
