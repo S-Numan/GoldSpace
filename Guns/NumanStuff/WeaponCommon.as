@@ -9,11 +9,6 @@
 
 namespace it
 {
-
-    /*::Weapon stats::
-            explode size
-            explode damage
-            explode damage terrain (y/n)*/
             
     enum RarityTypes
     {
@@ -115,7 +110,7 @@ namespace it
             }
         }
 
-        bool Tick(CRules@ rules, CControls@ controls)
+        bool Tick(CControls@ controls)
         {
             ticks_since_created++;
             
@@ -413,9 +408,9 @@ namespace it
         
 
 
-        bool Tick(CRules@ rules, CControls@ controls) override
+        bool Tick(CControls@ controls) override
         {
-            if(!basemodistore::Tick(@rules, @controls)){ return false; }
+            if(!basemodistore::Tick(@controls)){ return false; }
 
             DelayLogic(@controls);
 
@@ -829,9 +824,9 @@ namespace it
         }
 
 
-        bool Tick(CRules@ rules, CControls@ controls) override
+        bool Tick(CControls@ controls) override
         {
-            if(!activatable::Tick(@rules, @controls)){ return false; }
+            if(!activatable::Tick(@controls)){ return false; }
 
             ShootingLogic();
             return true;
@@ -1115,9 +1110,9 @@ namespace it
         }
 
 
-        bool Tick(CRules@ rules, CControls@ controls) override
+        bool Tick(CControls@ controls) override
         {
-            if(!item::Tick(@rules, @controls)){ return false; }
+            if(!item::Tick(@controls)){ return false; }
 
             return true;
         }

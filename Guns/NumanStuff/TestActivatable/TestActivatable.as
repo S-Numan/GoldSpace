@@ -48,7 +48,7 @@ void onTick( CBlob@ this )
     if(controls == @null){//Controls doesn't exist/
         return;//Stop
     }
-    example_thing.Tick(getRules(), @controls);
+    example_thing.Tick(@controls);
 }
 
 

@@ -9,9 +9,9 @@ void onInit( CBlob@ this )
     @example_thing = @it::itemaim();
     example_thing.Init();
 
-    example_thing.addUseListener(@onUse);
+    //example_thing.addUseListener(@onUse);
 
-    example_thing.addShotListener(@onShot);
+    //example_thing.addShotListener(@onShot);
     
     example_thing.max_ammo[BaseValue] = 17;
     example_thing.setAmmoLeft(example_thing.max_ammo[CurrentValue]);
@@ -69,7 +69,7 @@ void onInit( CBlob@ this )
 }
 
 void onTick( CBlob@ this )
-{
+{/*
     if(!this.isAttached()){//Not attached?
         return;//Stop
     }
@@ -84,7 +84,7 @@ void onTick( CBlob@ this )
     if(controls == @null){//Controls doesn't exist/
         return;//Stop
     }
-    example_thing.Tick(getRules(), @controls);
+    example_thing.Tick(@controls);
     //print("charge = " + example_thing.getCurrentCharge());
 
     Vec2f direction;
@@ -112,7 +112,7 @@ void onTick( CBlob@ this )
 
 
     //print("x = " + direction.x);
-    //print("y = " + direction.y);
+    //print("y = " + direction.y);*/
 }
 
 
