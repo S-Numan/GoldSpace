@@ -77,7 +77,7 @@ namespace it
 
             ticks_since_created = Nu::u32_max();
 
-            debug_color = SColor(255, 25, 255, 25);
+            debug_color = SColor(255, 22, 222, 22);
 
             @f32_array = @array<Modif32@>();
 
