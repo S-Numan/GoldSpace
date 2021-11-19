@@ -167,6 +167,14 @@ class Modif32 : ModiBase
         
     }
 
+
+    void Serialize(CBitStream@ bs)
+    {
+        for(u16 i = 1; i < value.size(); i++)//For everything that modifies value, skipping current value.
+        {
+            bs.write_f32(value[i]);
+        }
+    }
 }
 
 
@@ -247,5 +255,14 @@ class Modibool : ModiBase
         }
         
     }
-    
+
+
+
+    void Serialize(CBitStream@ bs)
+    {
+        for(u16 i = 1; i < value.size(); i++)
+        {
+            bs.write_bool(value[i]);
+        }
+    }
 }

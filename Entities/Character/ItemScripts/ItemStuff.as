@@ -22,11 +22,13 @@ void onReload(CBlob@ this)
 
 void onTick(CBlob@ this)
 {
+    if(!this.isMyPlayer()) { return; }
+
+    CControls@ controls = @getControls();
+    if(controls == @null) { Nu::Error("controls was null"); return; }
+
     array<it::IModiStore@>@ equipment;
     if(!this.get("equipment", @equipment)) { Nu::Error("equipment array was null"); return; }
-    
-    CControls@ controls = @this.getControls();
-    if(controls == @null) { Nu::Error("controls was null"); return; }
 
     u16 i;
 
@@ -77,25 +79,10 @@ void onAttach(CBlob@ this, CBlob@ attached, AttachmentPoint@ attachedPoint)
 {
     if(this.getCarriedBlob() != @attached) { return; }
     //Past this point, we're sure that the attached blob is the carried blob.
-    if(attached.hasTag("equipment_giver"))
-    {
-        it::IModiStore@ modi_store;
-        attached.get("equipment", @modi_store);
-        if(modi_store == @null) { Nu::Error("equipment was null."); return;}
-
-        array<it::IModiStore@>@ equipment;
-        if(!this.get("equipment", @equipment)) { Nu::Error("equipment array was null"); return; }
-        
-        addEquipment(@this, @modi_store, this.get_u8("equip_slot"));
-
-        if(isServer())
-        {
-            attached.server_Die();
-        }
-    }
+    
 }
 
-void addEquipment(CBlob@ this, it::IModiStore@ to_add, u8 equip_slot)
+/*void addEquipment(CBlob@ this, it::IModiStore@ to_add, u8 equip_slot)
 {
     array<it::IModiStore@>@ equipment;
     if(!this.get("equipment", @equipment)) { Nu::Error("equipment array was null"); return; }
@@ -103,7 +90,7 @@ void addEquipment(CBlob@ this, it::IModiStore@ to_add, u8 equip_slot)
     @equipment[equip_slot] = @to_add;
 
     //this.set("equipment", @equipment);
-}
+}*/
 
 
 

@@ -2,10 +2,23 @@
 #include "ModiVars.as";
 #include "WeaponModifiers.as";
 
-//Tuple
-//1: Current Stat. 2: Base Stat.
-
 //Change clip to mag. It's shorter and more accurate based on the logic.
+
+//Sync on change value, or every tick?
+//Syncing every tick: 
+//Easier
+//Syncing on value change:
+//More annoying to program.
+//Can be used improperly, syncing things more than once or not at all
+//Happens sooner, thus less delay for other clients?
+//More optimized?
+//
+//I think I prefer syncing every tick. Less a pain to program on all sides.
+
+//Change debug_color to a CONSOLECOLOUR::SCOLOR
+
+
+
 
 namespace it
 {
@@ -70,11 +83,15 @@ namespace it
         void AfterInit();
         bool Tick(CControls@ controls);
         
+        void Serialize(CBitStream@ bs);
+
         array<Modif32@>@ getF32Array();
         array<Modibool@>@ getBoolArray();
         array<DefaultModifier@>@ getAllModifiers();
-        array<f32>@ getVF32();
+        array<f32>@  getVF32();
+        array<bool>@ getVF32Sync();
         array<bool>@ getVBool();
+        array<bool>@ getVBoolSync();
 
         u16 getModif32Point(int _name_hash);
         u16 getModif32Point(string _name);
@@ -95,9 +112,23 @@ namespace it
 
         void DebugVars();
 
+        void setVars();
+        void setModiVars();
+
         void BaseValueChanged();
 
         u32 getTicksSinceCreated();
+    }
+
+    enum ClassTypes
+    {
+        ClassBaseModiStore = 0,
+        ClassActivatable,
+        ClassItem,
+        ClassItemAim,
+        ClassWeapon,
+
+        ClassTypeCount
     }
 
     class basemodistore : IModiStore
@@ -111,10 +142,12 @@ namespace it
             debug_color = SColor(255, 22, 222, 22);
 
             @f32_array = @array<Modif32@>();
-            @vf32 = array<f32>();
+            @vf32 = @array<f32>();
+            @vf32sync = @array<bool>();
 
             @bool_array = @array<Modibool@>();
             @vbool = @array<bool>();
+            @vboolsync = @array<bool>();
 
             @all_modifiers = @array<DefaultModifier@>();
 
@@ -122,13 +155,18 @@ namespace it
             tag_array.reserve(5);
         }
 
+        u8 class_type;
         bool init;
         void Init()
         {
             if(!init)//If init has not yet been called. (most derived class)
             {
                 init = true;//Init has been called.
+                class_type = ClassBaseModiStore;
             }
+
+            setModiVars();
+            setVars();
 
             AfterInit();
         }
@@ -148,6 +186,45 @@ namespace it
             }
         }
 
+        void Serialize(CBitStream@ bs)
+        {
+            u16 i;
+
+            bs.write_u8(class_type);
+            bs.write_u32(ticks_since_created);
+            
+            for(i = 0; i < f32_array.size(); i++)
+            {
+                f32_array[i].Serialize(@bs);
+            }
+            for(i = 0; i < bool_array.size(); i++)
+            {
+                bool_array[i].Serialize(@bs);
+            }
+            for(i = 0; i < vf32.size(); i++)
+            {
+                bs.write_f32(vf32[i]);
+            }
+            for(i = 0; i < vbool.size(); i++)
+            {
+                bs.write_bool(vbool[i]);
+            }
+        }
+
+        void ResizeThings(u16 f32_size, u16 bool_size, u16 vf32_size, u16 vbool_size)
+        {
+            u16 i;
+
+            f32_array.reserve(f32_size);
+            bool_array.reserve(bool_size);
+
+            vf32.resize(vf32_size);
+            vf32sync.resize(vf32_size);
+
+            vbool.resize(vbool_size);
+            vboolsync.resize(vbool_size);
+        }
+
         bool Tick(CControls@ controls)
         {
             ticks_since_created++;
@@ -157,7 +234,7 @@ namespace it
 
         SColor debug_color;
 
-        array<Modif32@>@ f32_array;
+        array<Modif32@>@ f32_array;//Stores Modif32 .. variables? Don't often change. Things like, "max_ammo_count"
         array<Modif32@>@ getF32Array()
         {
             return @f32_array;
@@ -175,16 +252,27 @@ namespace it
             return @all_modifiers;
         }
 
-        array<f32>@ vf32;
+        array<f32>@ vf32;//Stores normal f32 variables. The intended to be maluable kind. Things like, "current_ammo_count"
         array<f32>@ getVF32()
         {
             return @vf32;
+        }        
+        array<bool>@ vf32sync;//Every element matches with an element in the f32 array. If the element in this array is true, then this element in the vf32 array is synced to all other clients when it changes.
+        array<bool>@ getVF32Sync()
+        {
+            return @vf32sync;
         }
+    
 
         array<bool>@ vbool;
         array<bool>@ getVBool()
         {
             return @vbool;
+        }
+        array<bool>@ vboolsync;
+        array<bool>@ getVBoolSync()
+        {
+            return @vboolsync;
         }
 
         void DebugVars()
@@ -282,6 +370,16 @@ namespace it
                 }
                 print("");
             }
+        }
+
+        void setModiVars()
+        {
+
+        }
+
+        void setVars()
+        {
+            
         }
 
 
@@ -431,14 +529,13 @@ namespace it
             if(!init)//If init has not yet been called. (most derived class)
             {
                 init = true;//Init has been called.
+                class_type = ClassActivatable;
                 
-                bool_array.reserve(2);
-                f32_array.reserve(6);
-                setModiVars();
-
-                vbool.resize(ActivatableBoolCount);
-                vf32.resize(ActivatableFloatCount);
-                setVars();
+                ResizeThings(6,//f32
+                2,//bool
+                ActivatableFloatCount,//vf32
+                ActivatableBoolCount//vbool
+                );
             }
 
             basemodistore::Init();
@@ -449,7 +546,7 @@ namespace it
             basemodistore::AfterInit();
         }
 
-        void setModiVars()
+        void setModiVars() override
         {
             //USE how
             f32_array.push_back(@use_afterdelay);
@@ -473,7 +570,7 @@ namespace it
             bool_array.push_back(@remove_on_empty);
         }
 
-        void setVars()
+        void setVars() override
         {
             vf32[UseAfterdelayLeft] = 0;
             vf32[AmmoLeft] = 0;            
@@ -886,14 +983,13 @@ namespace it
             if(!init)//If init has not yet been called. (most derived class)
             {
                 init = true;//Init has been called.
+                class_type = ClassItem;
                 
-                bool_array.reserve(2 + 3);
-                f32_array.reserve(6 + 6);
-                setModiVars();
-
-                vbool.resize(ItemBoolCount);
-                vf32.resize(ItemFloatCount);
-                setVars();
+                ResizeThings(6 + 6,//f32
+                2 + 3,//bool
+                ItemFloatCount,//vf32
+                ItemBoolCount//vbool
+                );
             }
             
             activatable::Init();
@@ -1201,14 +1297,13 @@ namespace it
             if(!init)//If init has not yet been called. (most derived class)
             {
                 init = true;//Init has been called.
+                class_type = ClassItemAim;
                 
-                bool_array.reserve(2 + 3 + 0);
-                f32_array.reserve(6 + 6 + 5);
-                setModiVars();
-
-                vbool.resize(ItemAimBoolCount);
-                vf32.resize(ItemAimFloatCount);
-                setVars();
+                ResizeThings(6 + 6 + 5,//f32
+                2 + 3 + 0,//bool
+                ItemAimFloatCount,//vf32
+                ItemAimBoolCount//vbool
+                );
             }
             item::Init();
         }
