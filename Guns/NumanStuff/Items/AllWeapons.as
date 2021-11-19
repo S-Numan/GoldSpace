@@ -21,10 +21,9 @@ void onDebugShot(f32 shot_angle, array<Modif32@>@ f32_array, array<Modibool@>@ b
     //example_thing.DebugVars();
 }
 
-it::itemaim@ TestWeapon(u8 &out equip_slot, string &out item_type)
+it::itemaim@ TestWeapon(u8 &out equip_slot)
 {
     equip_slot = 0;//0 is primary, 1 is secondary, 2 is whatever.
-    item_type = "itemaim";//class name
     
 
     print("created TestItem");   

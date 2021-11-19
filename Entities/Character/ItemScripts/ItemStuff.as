@@ -6,7 +6,10 @@
 
 void onInit(CBlob@ this)
 {
-    array<it::basemodistore@>@ equipment = @array<it::basemodistore@>(11, @null);
+    //Can't cast properly in kag angelscript, so I literally don't know how to do this in a better way.
+    array<it::IModiStore@>@ equipment = @array<it::IModiStore@>(11, @null);
+
+
     this.set("equipment", @equipment);//Equipment
     
     this.set_u8("current_equip", 0);//Currently equiped thing in equipment array
@@ -19,13 +22,15 @@ void onReload(CBlob@ this)
 
 void onTick(CBlob@ this)
 {
-    array<it::basemodistore@>@ equipment;
+    array<it::IModiStore@>@ equipment;
     if(!this.get("equipment", @equipment)) { Nu::Error("equipment array was null"); return; }
     
     CControls@ controls = @this.getControls();
     if(controls == @null) { Nu::Error("controls was null"); return; }
 
-    for(u16 i = 0; i < equipment.size(); i++)
+    u16 i;
+
+    for(i = 0; i < equipment.size(); i++)
     {
         if(equipment[i] == @null) { continue; }
         equipment[i].Tick(@controls);
@@ -72,38 +77,16 @@ void onAttach(CBlob@ this, CBlob@ attached, AttachmentPoint@ attachedPoint)
 {
     if(this.getCarriedBlob() != @attached) { return; }
     //Past this point, we're sure that the attached blob is the carried blob.
-    if(attached.hasTag("item_giver"))
+    if(attached.hasTag("equipment_giver"))
     {
-        array<it::basemodistore@>@ equipment;
+        it::IModiStore@ modi_store;
+        attached.get("equipment", @modi_store);
+        if(modi_store == @null) { Nu::Error("equipment was null."); return;}
+
+        array<it::IModiStore@>@ equipment;
         if(!this.get("equipment", @equipment)) { Nu::Error("equipment array was null"); return; }
-
-        int item_type = attached.get_string("item_type").getHash();
-        if(item_type == "basemodistore".getHash())
-        {
-            
-        }
-        else if(item_type == "activatable".getHash())
-        {
-
-        }
-        else if(item_type == "item".getHash())
-        {
-
-        }
-        else if(item_type == "itemaim".getHash())
-        {
-            it::basemodistore@ _itemaim;
-            attached.get("equipment", @_itemaim);
-            addEquipment(@this, @_itemaim, this.get_u8("equip_slot"));
-        }
-        else if(item_type == "weapon".getHash())
-        {
-            
-        }
-        else
-        {
-            Nu::Error("unknown item type"); return;
-        }
+        
+        addEquipment(@this, @modi_store, this.get_u8("equip_slot"));
 
         if(isServer())
         {
@@ -112,14 +95,14 @@ void onAttach(CBlob@ this, CBlob@ attached, AttachmentPoint@ attachedPoint)
     }
 }
 
-void addEquipment(CBlob@ this, it::basemodistore@ to_add, u8 equip_slot)
+void addEquipment(CBlob@ this, it::IModiStore@ to_add, u8 equip_slot)
 {
-    array<it::basemodistore@>@ equipment;
+    array<it::IModiStore@>@ equipment;
     if(!this.get("equipment", @equipment)) { Nu::Error("equipment array was null"); return; }
 
-    @equipment[equip_slot] = @to_add;//TODO, see if casting works.
+    @equipment[equip_slot] = @to_add;
 
-    this.set("equipment", @equipment);
+    //this.set("equipment", @equipment);
 }
 
 

@@ -2,21 +2,23 @@
 //This blob should be created with no init, then the init should be ran after.
 
 #include "WeaponCommon.as";
-#include "AllWeapons.as"
+#include "AllWeapons.as";
 
 void onInit( CBlob@ this )
 {
-    this.Tag("item_giver");
-
-    if(this.get_string("item_type").size() == 0)//if item_type(equipment) was not set.
+    it::IModiStore@ equipment = @null;
+    this.get("equipment", @equipment);
+    
+    if(equipment == @null)//equipment not set?
     {
+        //Set test item for debug purposes
         u8 equip_slot;
-        string item_type;
-        this.set("equipment", @TestWeapon(equip_slot, item_type));
+        this.set("equipment", @TestWeapon(equip_slot));
         
         this.set_u8("equip_slot", equip_slot);
-        this.set_string("item_type", item_type);
     }
+    
+    this.Tag("equipment_giver");
 }
        
 

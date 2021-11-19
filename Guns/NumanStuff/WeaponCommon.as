@@ -64,7 +64,43 @@ namespace it
         DamageTypeCount
     }
 
-    class basemodistore
+    interface IModiStore
+    {
+        void Init();
+        void AfterInit();
+        bool Tick(CControls@ controls);
+        
+        array<Modif32@>@ getF32Array();
+        array<Modibool@>@ getBoolArray();
+        array<DefaultModifier@>@ getAllModifiers();
+        array<f32>@ getVF32();
+        array<bool>@ getVBool();
+
+        u16 getModif32Point(int _name_hash);
+        u16 getModif32Point(string _name);
+        u16 getModiboolPoint(int _name_hash);
+        u16 getModiboolPoint(string _name);
+
+        bool addModifier(DefaultModifier@ _modi);
+        bool removeModifier(u16 _pos);
+        bool removeModifier(int _name_hash);
+        bool removeModifier(string _name);
+        void DebugModiVars(bool full_data = false);
+
+        bool hasTag(string tag_string);
+        bool hasTag(int tag_hash);
+        void addTag(int tag_hash);
+        bool removeTag(int tag_hash);
+        void DebugTags();
+
+        void DebugVars();
+
+        void BaseValueChanged();
+
+        u32 getTicksSinceCreated();
+    }
+
+    class basemodistore : IModiStore
     {
         basemodistore()
         {
@@ -75,8 +111,10 @@ namespace it
             debug_color = SColor(255, 22, 222, 22);
 
             @f32_array = @array<Modif32@>();
+            @vf32 = array<f32>();
 
             @bool_array = @array<Modibool@>();
+            @vbool = @array<bool>();
 
             @all_modifiers = @array<DefaultModifier@>();
 
@@ -120,15 +158,42 @@ namespace it
         SColor debug_color;
 
         array<Modif32@>@ f32_array;
+        array<Modif32@>@ getF32Array()
+        {
+            return @f32_array;
+        }
 
         array<Modibool@>@ bool_array;
-        
-        array<DefaultModifier@>@ all_modifiers;//All modifiers
-
-
-        u16 getModif32Point(string _name)//TODO make a hash method for this too.
+        array<Modibool@>@ getBoolArray()
         {
-            int _name_hash = _name.getHash();
+            return @bool_array;
+        }
+
+        array<DefaultModifier@>@ all_modifiers;//All modifiers
+        array<DefaultModifier@>@ getAllModifiers()
+        {
+            return @all_modifiers;
+        }
+
+        array<f32>@ vf32;
+        array<f32>@ getVF32()
+        {
+            return @vf32;
+        }
+
+        array<bool>@ vbool;
+        array<bool>@ getVBool()
+        {
+            return @vbool;
+        }
+
+        void DebugVars()
+        {
+            print("ticks_since_created = " + ticks_since_created, debug_color);
+        }
+
+        u16 getModif32Point(int _name_hash)
+        {
             for(u16 i = 0; i < f32_array.size(); i++)
             {
                 if(f32_array[i].getNameHash() == _name_hash)
@@ -138,9 +203,13 @@ namespace it
             }
             return Nu::u16_max();
         }
-        u16 getModiboolPoint(string _name)
+        u16 getModif32Point(string _name)
         {
-            int _name_hash = _name.getHash();
+            return getModif32Point(_name.getHash());
+        }
+
+        u16 getModiboolPoint(int _name_hash)
+        {
             for(u16 i = 0; i < bool_array.size(); i++)
             {
                 if(bool_array[i].getNameHash() == _name_hash)
@@ -149,6 +218,10 @@ namespace it
                 }
             }
             return Nu::u16_max();
+        }
+        u16 getModiboolPoint(string _name)
+        {
+            return getModiboolPoint(_name.getHash());
         }
 
 
@@ -308,7 +381,29 @@ namespace it
         }
 
         u32 ticks_since_created;
+        u32 getTicksSinceCreated()
+        {
+            return u32(ticks_since_created);
+        }
     }
+
+    enum ActivatableFloats
+    {
+        UseAfterdelayLeft = 0,
+        AmmoLeft,
+        CurrentCharge,
+
+        ActivatableFloatCount
+    }
+    enum ActivatableBools
+    {
+        ChargeAllowance = 0,
+        StopDischarge,        
+
+        ActivatableBoolCount
+    }
+
+    
 
     //this
     //funcdef void USE_CALLBACK(activatable@);
@@ -325,15 +420,7 @@ namespace it
     {
         activatable()
         {
-
             use_func = @null;
-            use_afterdelay_left = 0;
-            use_delay_left = 0;
-            ammo_left = 0;
-            
-            current_charge = 0;
-            charge_allowance = false;
-            stop_discharge = false;
 
             use_sfx = "";
             empty_total_sfx = "";
@@ -348,6 +435,10 @@ namespace it
                 bool_array.reserve(2);
                 f32_array.reserve(6);
                 setModiVars();
+
+                vbool.resize(ActivatableBoolCount);
+                vf32.resize(ActivatableFloatCount);
+                setVars();
             }
 
             basemodistore::Init();
@@ -362,7 +453,6 @@ namespace it
         {
             //USE how
             f32_array.push_back(@use_afterdelay);
-            //f32_array.push_back(@use_delay);//Disabled for being confusing to program.
         
             f32_array.push_back(@max_ammo);
 
@@ -383,15 +473,25 @@ namespace it
             bool_array.push_back(@remove_on_empty);
         }
 
+        void setVars()
+        {
+            vf32[UseAfterdelayLeft] = 0;
+            vf32[AmmoLeft] = 0;            
+            vf32[CurrentCharge] = 0;
+            
+            vbool[ChargeAllowance] = false;
+            vbool[StopDischarge] = false;
+        }
+
         void BaseValueChanged() override//Called if a base value is changed.
         {
             basemodistore::BaseValueChanged();
         }
 
-        void DebugVars()
+        void DebugVars() override
         {
-            print("use_afterdelay_left = " + use_afterdelay_left, debug_color);
-            print("use_delay_left = " + use_delay_left, debug_color);
+            basemodistore::DebugVars();
+            print("use_afterdelay_left = " + getUseAfterdelayLeft(), debug_color);
             print("ammo_left = " + getAmmoLeft(), debug_color);
             print("stop_discharge = " + getStopDischarge(), debug_color);
             print("current_charge = " + getCurrentCharge(), debug_color);
@@ -437,34 +537,28 @@ namespace it
                 setStopDischarge(false);//This is no longer charging.
             }
 
-            if(!charge_allowance//If charge allowance is false
+            if(!getChargeAllowance()//If charge allowance is false
                 && can_use_basic == 0)//and CanUseOnce allows being used
             {
                 if(using_mode[CurrentValue] != 2)//If using_mode is not on release
                 {
                     if(controls.isKeyJustPressed(KEY_LBUTTON))//Left button just pressed?
                     {
-                        charge_allowance = true;//Charge allowance.
+                        setChargeAllowance(true);//Charge allowance.
                     }
                 } 
                 else if(controls.isKeyJustReleased(KEY_LBUTTON))//using_mode is on release, and left button was just released
                 {
-                    charge_allowance = true;
+                    setChargeAllowance(true);
                 }
             }
             //Charging
 
-            if(use_afterdelay_left > 0)
+            if(getUseAfterdelayLeft() > 0)
             {
-                use_afterdelay_left -= 1.0f;
-                if(use_afterdelay_left < 0.0f){ use_afterdelay_left = 0.0f; }
+                setUseAfterdelayLeft(getUseAfterdelayLeft() - 1.0f);
+                if(getUseAfterdelayLeft() < 0.0f){ setUseAfterdelayLeft(0.0f); }
             }
-            
-            /*if(use_delay_left > 0)
-            {
-                use_delay_left -= 1.0f;
-                if(use_delay_left < 0.0f){ use_delay_left = 0.0f; }
-            }*/
         }
 
         u8 UsingLogic(CControls@ controls)
@@ -498,9 +592,7 @@ namespace it
             else if(can_use_reason == 4//no_ammo_no_shots is true, and the current amount of shots plus the amount that would be added went past max ammo. There are no current queued shots
             || can_use_reason == 7)//Or there is simply no ammo left
             {
-                use_afterdelay_left = use_afterdelay[CurrentValue];//Add the delay like this was used.
-                
-                UseOnceReduction(false);
+                UseOnceReduction(false);//act like this was used, but don't use ammo or "use".
 
                 if(empty_total_sfx != "") { Sound::Play(empty_total_sfx); }//Play attempted use sound//TODO, make sfx better. Have position, volume, pitch as variables. Every client should hear the shots.
             }
@@ -534,13 +626,9 @@ namespace it
         //12 == button is pressed but the using_mode doesn't allow firing
         u8 CanUseOnce(CControls@ controls, bool encore = true)
         {
-            if(use_afterdelay_left != 0.0f)//If use afterdelay is not over
+            if(getUseAfterdelayLeft() != 0.0f)//If use afterdelay is not over
             {
                 return 1;//Nope
-            }
-            if(use_delay_left != 0.0f)//If use delay is not over
-            {
-                return 2;//Nay
             }
             
             if(encore)
@@ -600,7 +688,7 @@ namespace it
                     return 10;//Back out of there
                 }
                 //Can shoot
-                else if(charge_allowance)//charge_allowance was true, so it is allowed
+                else if(getChargeAllowance())//charge_allowance was true, so it is allowed
                 {
                     return_value = 0;//Forward!
                 }
@@ -650,7 +738,7 @@ namespace it
         }
         void UseOnceReduction(bool ammo_too)
         {
-            use_afterdelay_left = use_afterdelay[CurrentValue];
+            setUseAfterdelayLeft(use_afterdelay[CurrentValue]);
         
             if(ammo_too)
             {
@@ -661,9 +749,9 @@ namespace it
             if(getCurrentCharge() < 0) { setCurrentCharge(0.0f, false); }
             syncCurrentCharge();
             
-            if(charge_allowance && using_mode[CurrentValue] != 1)//If charge_allowance is true, and the using_mode is not full auto
+            if(getChargeAllowance() && using_mode[CurrentValue] != 1)//If charge_allowance is true, and the using_mode is not full auto
             {
-                charge_allowance = false;//No more charge allowance
+                setChargeAllowance(false);//No more charge allowance
             }
         }
 
@@ -674,25 +762,24 @@ namespace it
 
         Modif32@ use_afterdelay = Modif32("use_afterdelay", 0.0f);//basically rate of fire. How frequently can this be used? This many ticks before it can be reused.
 
-        f32 use_afterdelay_left;
-
-
-        Modif32@ use_delay = Modif32("use_delay", 0.0f);//If this is 30.0f, it would take 30 ticks after pressing the use button for this activatable to be used.
-        //After this activatable is "used", this intercepts the use and delays it is designed to do by the amount of ticks specified. Further presses of the use button while this activatable is delayed will do nothing.
-
-        f32 use_delay_left;
-
+        f32 getUseAfterdelayLeft()
+        {
+            return vf32[UseAfterdelayLeft];
+        }
+        void setUseAfterdelayLeft(f32 value)
+        {
+            vf32[UseAfterdelayLeft] = value;
+        }
 
         Modif32@ max_ammo = Modif32("max_ammo", 1.0f);//Max amount of times this can be used
 
-        private f32 ammo_left;
         f32 getAmmoLeft()
         {
-            return ammo_left;
+            return vf32[AmmoLeft];
         }
         void setAmmoLeft(f32 value, bool sync_value = true)
         {
-            ammo_left = value;
+            vf32[AmmoLeft] = value;
             if(sync_value){ syncAmmoLeft(); }
         }
         void syncAmmoLeft()
@@ -708,14 +795,14 @@ namespace it
     
             Modif32@ charge_up_time = Modif32("charge_up_time", 0.0f);//Time the player must be holding the use button to activate a use of this. Think spinup time for a minigun.
 
-            private float current_charge;//Value that stores the current charge
+            //Value that stores the current charge
             f32 getCurrentCharge()
             {
-                return current_charge;
+                return vf32[CurrentCharge];
             }
             void setCurrentCharge(f32 value, bool sync_value = true)
             {
-                current_charge = value;
+                vf32[CurrentCharge] = value;
                 if(sync_value) { syncCurrentCharge(); }
             }
             void syncCurrentCharge()
@@ -723,14 +810,14 @@ namespace it
 
             }
 
-            private bool stop_discharge;//When this is true, charge_down_per_tick will not lower current_charge
+            //When this is true, charge_down_per_tick will not lower current_charge
             bool getStopDischarge()
             {
-                return stop_discharge;
+                return vbool[StopDischarge];
             }
             void setStopDischarge(bool value, bool sync_value = true)
             {
-                stop_discharge = value;
+                vbool[StopDischarge] = value;
                 if(sync_value) { syncStopDischarge(); }
             }
             void syncStopDischarge()
@@ -744,7 +831,16 @@ namespace it
 
             Modibool@ allow_non_charged_shots = Modibool("allow_non_charged_shots", false);//If this is false, this cannot shoot until current_charge is equal to charge_up_time. If this is true, this can shoot independently of how much charge this has.
 
-            bool charge_allowance;//Charge uses can only happen when this is true. This is turned false after a charge use, and is only turned true after the button is triggered again.
+
+            //Charge uses can only happen when this is true. This is turned false after a charge use, and is only turned true after the button is triggered again.
+            bool getChargeAllowance()
+            {
+                return vbool[ChargeAllowance];
+            }
+            void setChargeAllowance(bool value)
+            {
+                vbool[ChargeAllowance] = value;
+            }
 
             Modibool@ charge_during_use = Modibool("charge_during_use", false);//If this is true, this continues charging even when in use and not being able to use again. If this is false, this retains it's charge after using, but does not go higher or lower. 
 
@@ -759,6 +855,18 @@ namespace it
         
 
     }
+    
+    enum ItemFloats
+    {
+        QueuedShots = ActivatableFloatCount,
+        ShotAfterdelayLeft,
+
+        ItemFloatCount
+    }
+    enum ItemBools
+    {
+        ItemBoolCount = ActivatableBoolCount
+    }
 
     //In order: Angle, Modif32@ array handle, Modibool@ array handle, DefaultModifier@ array handle.
     funcdef void SHOT_CALLBACK(f32, array<Modif32@>@, array<Modibool@>@, array<DefaultModifier@>@);
@@ -768,8 +876,6 @@ namespace it
         item()
         {
             shot_func = @null;
-            queued_shots = 0;
-            shot_afterdelay_left = 0;
             last_shot = Nu::u32_max();
 
             shot_sfx = "";
@@ -784,6 +890,10 @@ namespace it
                 bool_array.reserve(2 + 3);
                 f32_array.reserve(6 + 6);
                 setModiVars();
+
+                vbool.resize(ItemBoolCount);
+                vf32.resize(ItemFloatCount);
+                setVars();
             }
             
             activatable::Init();
@@ -810,7 +920,15 @@ namespace it
             bool_array.push_back(@use_with_shot_afterdelay);
             bool_array.push_back(@no_ammo_no_shots);
         }
-        
+
+        void setVars() override
+        {
+            activatable::setVars();
+
+            vf32[QueuedShots] = 0;
+            vf32[ShotAfterdelayLeft] = 0;
+        }
+
         void BaseValueChanged() override//Called if a base value is changed.
         {
             activatable::BaseValueChanged();
@@ -819,8 +937,8 @@ namespace it
         void DebugVars() override
         {
             activatable::DebugVars();
-            print("queued_shots = " + queued_shots, debug_color);
-            print("shot_afterdelay_left = " + shot_afterdelay_left, debug_color);
+            print("queued_shots = " + vf32[QueuedShots], debug_color);
+            print("shot_afterdelay_left = " + vf32[ShotAfterdelayLeft], debug_color);
         }
 
 
@@ -841,10 +959,10 @@ namespace it
                 last_shot++;
             }
 
-            if(shot_afterdelay_left > 0)
+            if(vf32[ShotAfterdelayLeft] > 0)
             {
-                shot_afterdelay_left -= 1.0f;
-                if(shot_afterdelay_left < 0.0f){ shot_afterdelay_left = 0.0f; }
+                vf32[ShotAfterdelayLeft] -= 1.0f;
+                if(vf32[ShotAfterdelayLeft] < 0.0f){ vf32[ShotAfterdelayLeft] = 0.0f; }
             }
         }
 
@@ -865,12 +983,12 @@ namespace it
                 else if(can_shoot_reason == 0)//Can shoot
                 {
                     ShootOnce();
-                    if(shot_afterdelay_left == 0){ continue; }//If there is literally no shot_afterdelay, shoot again right here right now.
+                    if(vf32[ShotAfterdelayLeft] == 0){ continue; }//If there is literally no shot_afterdelay, shoot again right here right now.
                 }
                 else if(can_shoot_reason == 5)//Out of ammo from ongoing queued up shots
                 {
                     //TODO: have a bool that changes how this behaves. If the bool is true; it removes all queued shots. If the bool is false; it behaves like it was shooting normally, just nothing was triggered and no heat was generated.
-                    queued_shots = 0;//Remove all queued up shots.
+                    vf32[QueuedShots] = 0;//Remove all queued up shots.
                     if(empty_total_ongoing_sfx != "") { Sound::Play(empty_total_ongoing_sfx); }
                 }
 
@@ -893,11 +1011,11 @@ namespace it
         //5 == out of ammo from ongoing queued up shots
         u8 CanShootOnce()
         {
-            if(queued_shots == 0)
+            if(vf32[QueuedShots] == 0)
             {
                 return 1;
             }
-            if(shot_afterdelay_left > 0)
+            if(vf32[ShotAfterdelayLeft] > 0)
             {
                 return 2;
             }
@@ -918,14 +1036,14 @@ namespace it
         void ShootOnce(bool call_func = true)
         {
             setAmmoLeft(getAmmoLeft() - ammo_per_shot[CurrentValue]);
-            queued_shots -= 1;
+            vf32[QueuedShots] -= 1;
             last_shot = 0;
 
-            if(shot_afterdelay_left != 0)
+            if(vf32[ShotAfterdelayLeft] != 0)
             {
-                Nu::Warning("shot_afterdelay_left was not 0 when shooting (was " + shot_afterdelay_left + "), something somewhere somehow is wrong. Good luck.");
+                Nu::Warning("shot_afterdelay_left was not 0 when shooting (was " + vf32[ShotAfterdelayLeft] + "), something somewhere somehow is wrong. Good luck.");
             }
-            shot_afterdelay_left = shot_afterdelay[CurrentValue];
+            vf32[ShotAfterdelayLeft] = shot_afterdelay[CurrentValue];
             if(getAmmoLeft() < 0.0f)
             {
                 Nu::Warning("ammo_left went below 0 (was " + getAmmoLeft() + "), something somewhere somehow is wrong. Good luck.");
@@ -956,11 +1074,11 @@ namespace it
             u8 can_use_reason = activatable::CanUseOnce(@controls, false);
             if(can_use_reason != 0) { return can_use_reason; }//If something was wrong previously, just stop there.
             //Continue
-            if(use_with_queued_shots[CurrentValue] == false && queued_shots != 0)//If this isn't supposed to be used with queued shots, and there are queued shots
+            if(use_with_queued_shots[CurrentValue] == false && vf32[QueuedShots] != 0)//If this isn't supposed to be used with queued shots, and there are queued shots
             {
                 return 3;//Can't be used right now
             }
-            if(use_with_shot_afterdelay[CurrentValue] == false && shot_afterdelay_left != 0)//If this isn't supposed to be used when shot_afterdelay_left is not equal to 0
+            if(use_with_shot_afterdelay[CurrentValue] == false && vf32[ShotAfterdelayLeft] != 0)//If this isn't supposed to be used when shot_afterdelay_left is not equal to 0
             {
                 return 9;//STAP
             }
@@ -979,9 +1097,9 @@ namespace it
             {
                 //No ammo logic.
                 if(no_ammo_no_shots[CurrentValue] == true//and if no_ammo_no_shots is true
-                && queued_shots * ammo_per_shot[CurrentValue] + shots_per_use[CurrentValue] * ammo_per_shot[CurrentValue] > getAmmoLeft())//and if the current amount of shots plus the amount that would be added would go past max ammo.
+                && vf32[QueuedShots] * ammo_per_shot[CurrentValue] + shots_per_use[CurrentValue] * ammo_per_shot[CurrentValue] > getAmmoLeft())//and if the current amount of shots plus the amount that would be added would go past max ammo.
                 {
-                    if(queued_shots != 0)//Queued shots still going on?
+                    if(vf32[QueuedShots] != 0)//Queued shots still going on?
                     {
                         return 8;//Bye
                     }
@@ -998,7 +1116,7 @@ namespace it
         {
             activatable::UseOnce(false);
 
-            queued_shots += shots_per_use[CurrentValue];//Queue up a shot
+            vf32[QueuedShots] += shots_per_use[CurrentValue];//Queue up a shot
         }
 
         //
@@ -1025,7 +1143,8 @@ namespace it
 
             //AMOUNT
             //
-                float queued_shots;//Value that holds shots waiting to be activated. Think burst fire weapons. You cannot fire(use) when there are still shots queued up.
+                //vf32[QueuedShots]//Value that holds shots waiting to be activated. Think burst fire weapons. You cannot fire(use) when there are still shots queued up.
+
                 Modif32@ shots_per_use = Modif32("shots_per_use", 1.0f);//Amount of shots per use.
                 
                 Modibool@ use_with_queued_shots = Modibool("use_with_queued_shots", false);//When this is false, this cannot be used again until there are no more queued shots left. When this is true, you can continue using this and adding more queued shots.
@@ -1035,7 +1154,7 @@ namespace it
                 Modibool@ no_ammo_no_shots = Modibool("no_ammo_no_shots", true);//If this is true, using this wont setup queued shots if the amount of queued up shots left would pass ammo_left. If this is false, it will glady setup 3 shots even if there is only 2 ammo left.
                 
                 Modif32@ shot_afterdelay = Modif32("shot_afterdelay", 0.0f);//Only relevant if the stat above is more than 0
-                float shot_afterdelay_left;
+                //vf32[ShotAfterdelayLeft];
             //
             //AMOUNT
 
@@ -1060,15 +1179,22 @@ namespace it
     }
 
 
+    enum ItemAimFloats
+    {
+        CurrentSpread = ItemFloatCount,
 
-
+        ItemAimFloatCount
+    }
+    enum ItemAimBools
+    {
+        ItemAimBoolCount = ItemBoolCount,
+    }
 
     class itemaim : item
     {
         itemaim()
         {
-            current_spread = 0;
-            @rnd = @Random(getGameTime() * 404 + 1337 - Time_Local());
+            
         }
         void Init() override
         {
@@ -1079,6 +1205,10 @@ namespace it
                 bool_array.reserve(2 + 3 + 0);
                 f32_array.reserve(6 + 6 + 5);
                 setModiVars();
+
+                vbool.resize(ItemAimBoolCount);
+                vf32.resize(ItemAimFloatCount);
+                setVars();
             }
             item::Init();
         }
@@ -1097,6 +1227,12 @@ namespace it
             f32_array.push_back(@max_shot_spread);
             f32_array.push_back(@spread_gain_per_shot);
             f32_array.push_back(@spread_loss_per_tick);        
+        }
+        void setVars() override
+        {
+            item::setVars();
+            
+            vf32[CurrentSpread] = 0;
         }
         
         void BaseValueChanged() override//Called if a base value is changed.
@@ -1123,19 +1259,19 @@ namespace it
             item::DelayLogic(@controls);
 
             //Lower current_spread by spread_loss_per_tick if above min_shot_spread
-            if(current_spread > min_shot_spread[CurrentValue])
+            if(vf32[CurrentSpread] > min_shot_spread[CurrentValue])
             {
-                current_spread -= spread_loss_per_tick[CurrentValue];
+                vf32[CurrentSpread] -= spread_loss_per_tick[CurrentValue];
             }
             //If gone below min_shot_spread, set current_spread to min_shot_spread
-            if(current_spread < min_shot_spread[CurrentValue])
+            if(vf32[CurrentSpread] < min_shot_spread[CurrentValue])
             {
-                current_spread = min_shot_spread[CurrentValue];
+                vf32[CurrentSpread] = min_shot_spread[CurrentValue];
             }
             //If gone above max_shot_spread, set current_spread to max_shot_spread
-            if(current_spread > max_shot_spread[CurrentValue])
+            if(vf32[CurrentSpread] > max_shot_spread[CurrentValue])
             {
-                current_spread = max_shot_spread[CurrentValue];
+                vf32[CurrentSpread] = max_shot_spread[CurrentValue];
             }
         }
 
@@ -1149,32 +1285,28 @@ namespace it
             {
                 f32 random_deviation = Nu::getRandomF32(random_shot_spread[CurrentValue] * -0.5, (random_shot_spread[CurrentValue] * 0.5f));
 
-                f32 random_aim = Nu::getRandomF32(current_spread * -0.5f, current_spread * 0.5f);
+                f32 random_aim = Nu::getRandomF32(vf32[CurrentSpread] * -0.5f, vf32[CurrentSpread] * 0.5f);
 
                 print("\nrandom_deviation = " + random_deviation);
-                print("current_spread = " + current_spread);
+                print("current_spread = " + vf32[CurrentSpread]);
                 print("random_aim = " + random_aim);
 
                 shot_func(random_aim + random_deviation, @f32_array, @bool_array, @all_modifiers);//Call it
                 //TODO Apply knockback per shot somehow
             }
 
-            current_spread += spread_gain_per_shot[CurrentValue];
-            if(current_spread > max_shot_spread[CurrentValue])
+            vf32[CurrentSpread] += spread_gain_per_shot[CurrentValue];
+            if(vf32[CurrentSpread] > max_shot_spread[CurrentValue])
             {
-                current_spread = max_shot_spread[CurrentValue];
+                vf32[CurrentSpread] = max_shot_spread[CurrentValue];
             }
         }
 
 
 
-
-
-        Random@ rnd; //Random number generator
-
         //AIMING
             //
-            f32 current_spread;
+            //vf32[CurrentSpread];
 
             Modif32@ random_shot_spread = Modif32("random_shot_spread", 0.0f);//Value that changes direction of where the shot is aimed by picking a value between 0 and this variable. Half chance to invert the value. Applies this to the direction the shot would be going.
 
@@ -1198,7 +1330,7 @@ namespace it
 
 
 
-    class weapon : item
+    class weapon : itemaim
     {
 
         //Jam chance
