@@ -49,17 +49,20 @@ void addEquipment(CBlob@ this, CBlob@ attached, it::IModiStore@ to_add, u8 equip
     {
         if(isServer())
         {
-            CBlob@ hig = server_CreateBlobNoInit("hig");//Create a new hig
-            hig.setPosition(this.getPosition());//Set the hig to the position where it was last-ish.
-            hig.set("pickup_equipment", @equipment[equip_slot]);//Give the hig the weapon.
-            
+            CBlob@ new_hig = server_CreateBlobNoInit("hig");//Create a new hig
+            new_hig.setPosition(this.getPosition());//Set the hig to the position where it was last-ish.
+            new_hig.set("pickup_equipment", @equipment[equip_slot]);//Give the hig the weapon.
+            new_hig.Init();
+
             CBitStream params;
             //params.write_u8(i);
             //this.SendCommand(this.getCommandID("sync_equipment"), params);
+            //TODO: rather than having each client have to rebuild the equipment, tell each client to put their equipment[equip_slot] elsewhere. Then move it to new_hig when they can. Tell each client to do this before killing this. 
         }
     }
 
     @equipment[equip_slot] = @to_add;
+    equipment[equip_slot].setID(equip_slot);
 
     //this.set("equipment", @equipment);
 
@@ -69,7 +72,7 @@ void addEquipment(CBlob@ this, CBlob@ attached, it::IModiStore@ to_add, u8 equip
     }
 }
 
-void onCommand( CBlob@ this, u8 cmd, CBitStream @params )
+void onCommand( CBlob@ this, u8 cmd, CBitStream@ params )
 {
     if(this.getCommandID("sync_equipment") == cmd)
 	{

@@ -63,7 +63,8 @@ class ModiHow//For modifying ModiVars
     u8 how;
 }
 
-funcdef void BASE_VALUE_CHANGED();
+//parameter 1 is name_hash
+funcdef void BASE_VALUE_CHANGED(int);
 
 class ModiBase
 {
@@ -95,7 +96,12 @@ class ModiBase
 
 class Modif32 : ModiBase
 {
-    Modif32(string _name, f32 default_value = 0.0f)
+    Modif32(string _name)
+    {
+        setName(_name);
+        value = array<f32>(7);
+    }
+    Modif32(string _name, f32 default_value)
     {
         setName(_name);//Name for this variable
 
@@ -133,7 +139,7 @@ class Modif32 : ModiBase
         
         if(@base_value_changed_func != @null)
         {
-            base_value_changed_func();
+            base_value_changed_func(name_hash);
         }
     }
 
@@ -175,12 +181,30 @@ class Modif32 : ModiBase
             bs.write_f32(value[i]);
         }
     }
+    void Deserialize(CBitStream@ bs)
+    {
+        for(u16 i = 1; i < value.size(); i++)//For everything that modifies value, skipping current value.
+        {
+            if(bs.saferead_f32(value[i]))
+            {
+                Nu::Error("Failure to read value");
+            }
+        }
+    }
 }
 
 
 class Modibool : ModiBase
 {
-    Modibool(string _name, bool default_value = false)
+    Modibool(string _name)
+    {
+        setName(_name);//Name for this variable
+
+
+        //Initialization of the variable
+        value = array<bool>(2);
+    }
+    Modibool(string _name, bool default_value)
     {
         setName(_name);//Name for this variable
 
@@ -216,7 +240,7 @@ class Modibool : ModiBase
             
             if(@base_value_changed_func != @null)
             {
-                base_value_changed_func();
+                base_value_changed_func(name_hash);
             }
         }
         else
@@ -260,9 +284,19 @@ class Modibool : ModiBase
 
     void Serialize(CBitStream@ bs)
     {
-        for(u16 i = 1; i < value.size(); i++)
+        for(u16 i = 0; i < value.size(); i++)
         {
             bs.write_bool(value[i]);
+        }
+    }
+    void Deserialize(CBitStream@ bs)
+    {
+        for(u16 i = 0; i < value.size(); i++)
+        {
+            if(bs.saferead_bool(value[i]))
+            {
+                Nu::Error("Failure to read value");
+            }
         }
     }
 }

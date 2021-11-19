@@ -80,17 +80,31 @@ namespace it
     interface IModiStore
     {
         void Init();
+        void Init(CBlob@ _blob);
         void AfterInit();
         bool Tick(CControls@ controls);
+
+        void setID(f32 value);
+        u16 getID();
+
+        void setOwner(CBlob@ _blob);
+        CBlob@ getOwner();
         
         void Serialize(CBitStream@ bs);
+        void Deserialize(CBitStream@ bs);
 
         array<Modif32@>@ getF32Array();
         array<Modibool@>@ getBoolArray();
         array<DefaultModifier@>@ getAllModifiers();
         array<f32>@  getVF32();
+        f32 getVF32(u8 pos);
+        void setVF32(u8 pos, f32 value, bool sync_value = true);
+        void syncVF32(u8 pos);
         array<bool>@ getVF32Sync();
         array<bool>@ getVBool();
+        bool getVBool(u8 pos);
+        void setVBool(u8 pos, bool value, bool sync_value = true);
+        void syncVBool(u8 pos);
         array<bool>@ getVBoolSync();
 
         u16 getModif32Point(int _name_hash);
@@ -115,7 +129,7 @@ namespace it
         void setVars();
         void setModiVars();
 
-        void BaseValueChanged();
+        void BaseValueChanged(int _name_hash);
 
         u32 getTicksSinceCreated();
     }
@@ -136,8 +150,12 @@ namespace it
         basemodistore()
         {
             init = false;
+            
+            id = Nu::u16_max();
 
             ticks_since_created = Nu::u32_max();
+
+            @owner_blob = @null;
 
             debug_color = SColor(255, 22, 222, 22);
 
@@ -156,6 +174,15 @@ namespace it
         }
 
         u8 class_type;
+        u16 id;//Think of it like a netid for this class. Though this netid only applies for each blob. Thus, equipment on different blobs can have the same id no problemo.
+        void setID(f32 value)
+        {
+            id = value;
+        }
+        u16 getID()
+        {
+            return id;
+        }
         bool init;
         void Init()
         {
@@ -169,6 +196,11 @@ namespace it
             setVars();
 
             AfterInit();
+        }
+        void Init(CBlob@ _blob)
+        {
+            setOwner(@_blob);
+            Init();
         }
         void AfterInit()
         {
@@ -186,13 +218,28 @@ namespace it
             }
         }
 
+        private CBlob@ owner_blob;
+        CBlob@ getOwner()
+        {
+            return owner_blob;
+        }
+        void setOwner(CBlob@ _blob)
+        {
+            @owner_blob = @_blob;
+        }
+
         void Serialize(CBitStream@ bs)
         {
             u16 i;
 
-            bs.write_u8(class_type);
-            bs.write_u32(ticks_since_created);
+            if(owner_blob == @null) { Nu::Error("owner_blob was null on attempt to serialize"); return; }
+
+            bs.write_u16(getID());
+
+            bs.write_u16(owner_blob.getNetworkID());
             
+            bs.write_u32(ticks_since_created);
+
             for(i = 0; i < f32_array.size(); i++)
             {
                 f32_array[i].Serialize(@bs);
@@ -208,6 +255,39 @@ namespace it
             for(i = 0; i < vbool.size(); i++)
             {
                 bs.write_bool(vbool[i]);
+            }
+        }
+
+        void Deserialize(CBitStream@ bs)
+        {
+            u16 i;
+
+            u16 _id;
+            if(!bs.saferead_u16(_id)){ Nu::Error("Failed to deserialize _id"); return;}
+            if(_id != id) { Nu::Error("id mismatch on Deserialize. Did you deserialize on the wrong class?"); return; }
+
+            u16 owner_netid;
+            if(!bs.saferead_u16(owner_netid)) { Nu::Error("Failed to deserialize owner_netid"); return; }
+            @owner_blob = @getBlobByNetworkID(owner_netid);
+            if(owner_blob == @null) { Nu::Error("serialized owner_blob was null"); }
+
+            if(!bs.saferead_u32(ticks_since_created)) { Nu::Error("Failed to deserialize ticks_since_created"); return; }
+            
+            for(i = 0; i < f32_array.size(); i++)
+            {
+                f32_array[i].Deserialize(@bs);
+            }
+            for(i = 0; i < bool_array.size(); i++)
+            {
+                bool_array[i].Deserialize(@bs);
+            }
+            for(i = 0; i < vf32.size(); i++)
+            {
+                if(!bs.saferead_f32(vf32[i])) { Nu::Error("Failed to deserialize vf32 on " + i); continue; }
+            }
+            for(i = 0; i < vbool.size(); i++)
+            {
+                if(!bs.saferead_bool(vbool[i])) { Nu::Error("Failed to deserialize vbool on " + i); continue; }
             }
         }
 
@@ -228,6 +308,11 @@ namespace it
         bool Tick(CControls@ controls)
         {
             ticks_since_created++;
+
+            if(getID() == Nu::u16_max())
+            {
+                Nu::Error("ID not set. Cannot run Tick before ID is set."); return false;
+            }
             
             return true;
         }
@@ -252,11 +337,39 @@ namespace it
             return @all_modifiers;
         }
 
-        array<f32>@ vf32;//Stores normal f32 variables. The intended to be maluable kind. Things like, "current_ammo_count"
+        private array<f32>@ vf32;//Stores normal f32 variables. The intended to be maluable kind. Things like, "current_ammo_count"
         array<f32>@ getVF32()
         {
             return @vf32;
-        }        
+        }
+        f32 getVF32(u8 pos)
+        {
+            if(pos >= vf32.size()) { Nu::Error("Attempted to go past max array size"); return 0.0f; }
+            return vf32[pos];
+        }
+        void setVF32(u8 pos, f32 value, bool sync_value = true)
+        {
+            if(pos >= vf32.size()) { Nu::Error("Attempted to go past max array size"); return; }
+            
+            vf32[pos] = value;
+            if(sync_value)//If this value is supposed to sync.
+            {
+                syncVF32(pos);
+            }
+        }
+        void syncVF32(u8 pos)
+        {
+            if(!vf32sync[pos]) { return; }
+            if(owner_blob == @null) { Nu::Error("owner_blob was null on attempt to sync " + pos); return; }
+                
+            CBitStream@ params;
+            params.write_u16(getID());
+
+            params.write_u8(pos);
+            params.write_f32(vf32[pos]);
+
+            owner_blob.SendCommand(owner_blob.getCommandID("syncvf32"), params);
+        }
         array<bool>@ vf32sync;//Every element matches with an element in the f32 array. If the element in this array is true, then this element in the vf32 array is synced to all other clients when it changes.
         array<bool>@ getVF32Sync()
         {
@@ -264,10 +377,38 @@ namespace it
         }
     
 
-        array<bool>@ vbool;
+        private array<bool>@ vbool;
         array<bool>@ getVBool()
         {
             return @vbool;
+        }
+        bool getVBool(u8 pos)
+        {
+            if(pos >= vbool.size()) { Nu::Error("Attempted to go past max array size"); return false; }
+            return vbool[pos];
+        }
+        void setVBool(u8 pos, bool value, bool sync_value = true)
+        {
+            if(pos >= vbool.size()) { Nu::Error("Attempted to go past max arraya size"); return; }
+            
+            vbool[pos] = value;
+            if(sync_value)//If this value is supposed to sync.
+            {
+                syncVBool(pos);
+            }
+        }
+        void syncVBool(u8 pos)
+        {
+            if(!vboolsync[pos]) { return; }
+            if(owner_blob == @null) { Nu::Error("owner_blob was null on attempt to sync " + pos); return; }
+
+            CBitStream@ params;
+            params.write_u16(getID());
+
+            params.write_u8(pos);
+            params.write_bool(vbool[pos]);
+
+            owner_blob.SendCommand(owner_blob.getCommandID("syncvbool"), params);
         }
         array<bool>@ vboolsync;
         array<bool>@ getVBoolSync()
@@ -313,11 +454,36 @@ namespace it
         }
 
 
-        void BaseValueChanged()//Called if a base value is changed.
+        void BaseValueChanged(int _name_hash)//Called if a base value is changed.
         {
-            //RefreshPassiveModifiers();
+            //Sync
+            if(owner_blob == @null) { Nu::Error("owner_blob was null on attempt to sync in BaseValueChanged " + _name_hash); return; }
+                
+            CBitStream@ params;
+            params.write_u16(getID());
+
+            u16 point;
+            point = getModif32Point(_name_hash);
+            if(point != Nu::u16_max())
+            {
+                //Sync Modif32
+                params.write_u8(point);
+                params.write_f32(f32_array[point][BaseValue]);
+
+                owner_blob.SendCommand(owner_blob.getCommandID("syncf32base"), params);
+            }
+            else
+            {
+                point = getModiboolPoint(_name_hash);
+                if(point != Nu::u16_max()) { Nu::Error("Could not find ModiVar"); return; }
+                //Sync Modibool
+                params.write_u8(point);
+                params.write_bool(bool_array[point][BaseValue]);
+
+                owner_blob.SendCommand(owner_blob.getCommandID("syncboolbase"), params);
+            }
         }
-        
+
         /*void RefreshPassiveModifiers()
         {
             for(u16 i = 0; i < all_modifiers.size(); i++)
@@ -572,17 +738,17 @@ namespace it
 
         void setVars() override
         {
-            vf32[UseAfterdelayLeft] = 0;
-            vf32[AmmoLeft] = 0;            
-            vf32[CurrentCharge] = 0;
+            setVF32(UseAfterdelayLeft, 0);
+            setVF32(AmmoLeft, 0);            
+            setVF32(CurrentCharge, 0);
             
-            vbool[ChargeAllowance] = false;
-            vbool[StopDischarge] = false;
+            setVBool(ChargeAllowance, false);
+            setVBool(StopDischarge, false);
         }
 
-        void BaseValueChanged() override//Called if a base value is changed.
+        void BaseValueChanged(int _name_hash) override//Called if a base value is changed.
         {
-            basemodistore::BaseValueChanged();
+            basemodistore::BaseValueChanged(_name_hash);
         }
 
         void DebugVars() override
@@ -624,9 +790,9 @@ namespace it
             if(!getStopDischarge() && getCurrentCharge() > 0//If this is not currently charging, and current charge is more than 0
             && can_use_basic == 0)//and the base level of CanUseOnce allows being used. Note that this is done before the other delay lowerings. That makes it not lower until a tick after the other delays have reached 0.
             {
-                setCurrentCharge(getCurrentCharge() - charge_down_per_tick[CurrentValue], false);//Lower current_charge by charge_down_per_tick
-                if(getCurrentCharge() < 0.0f){ setCurrentCharge(0.0f, false); }//If current_charge goes below 0, set it to 0
-                syncCurrentCharge();
+                setVF32(CurrentCharge, getVF32(CurrentCharge) - charge_down_per_tick[CurrentValue], false);//Lower current_charge by charge_down_per_tick
+                if(getVF32(CurrentCharge) < 0.0f){ setVF32(CurrentCharge, 0.0f, false); }//If current_charge goes below 0, set it to 0
+                syncVF32(CurrentCharge);
             }
 
             if(getStopDischarge())//If this is currently charging
@@ -669,12 +835,13 @@ namespace it
             || (charge_during_use[CurrentValue] && controls.isKeyPressed(KEY_LBUTTON)))//Or charge_during_use is true and the left button is being pressed.
             {
                 f32 _charge_up_time = charge_up_time[CurrentValue];//Get charge_up_time is a temp variable
-                if(getCurrentCharge() != _charge_up_time)//If current_charge is not equal to charge up time
+                if(getVF32(CurrentCharge) != _charge_up_time)//If current_charge is not equal to charge up time
                 {
-                    setCurrentCharge(getCurrentCharge() + 1.0f, false);//Add one to it
-                    if(getCurrentCharge() > charge_up_time[CurrentValue]) { setCurrentCharge(charge_up_time[CurrentValue], false); }//If current_charge went past charge_up_time, set it to charge_up_time
-                    syncCurrentCharge();
-                    setStopDischarge(true);//This is currently charging
+                    setVF32(CurrentCharge, getVF32(CurrentCharge) + 1.0f, false);//Add one to it
+                    if(getVF32(CurrentCharge) > charge_up_time[CurrentValue]) { setVF32(CurrentCharge, charge_up_time[CurrentValue], false); }//If current_charge went past charge_up_time, set it to charge_up_time
+                    syncVF32(CurrentCharge);
+
+                    setVBool(StopDischarge, true);//This is currently charging
                 }
             }
 
@@ -684,7 +851,7 @@ namespace it
             }
             else if(can_use_reason == 11)//Pressing button, but charge_allowance is false.
             {
-                setStopDischarge(true);//To prevent charge from going down when holding on semi-auto? I think.
+                setVBool(StopDischarge, true);//To prevent charge from going down when holding on semi-auto? I think.
             }
             else if(can_use_reason == 4//no_ammo_no_shots is true, and the current amount of shots plus the amount that would be added went past max ammo. There are no current queued shots
             || can_use_reason == 7)//Or there is simply no ammo left
@@ -842,9 +1009,9 @@ namespace it
                 setAmmoLeft(getAmmoLeft() - 1.0f);
             }
 
-            setCurrentCharge(getCurrentCharge() - charge_down_per_use[CurrentValue], false);
-            if(getCurrentCharge() < 0) { setCurrentCharge(0.0f, false); }
-            syncCurrentCharge();
+            setVF32(CurrentCharge, getVF32(CurrentCharge) - charge_down_per_use[CurrentValue], false);
+            if(getVF32(CurrentCharge) < 0) { setVF32(CurrentCharge, 0.0f, false); }
+            syncVF32(CurrentCharge);
             
             if(getChargeAllowance() && using_mode[CurrentValue] != 1)//If charge_allowance is true, and the using_mode is not full auto
             {
@@ -861,27 +1028,22 @@ namespace it
 
         f32 getUseAfterdelayLeft()
         {
-            return vf32[UseAfterdelayLeft];
+            return getVF32(UseAfterdelayLeft);
         }
         void setUseAfterdelayLeft(f32 value)
         {
-            vf32[UseAfterdelayLeft] = value;
+            setVF32(UseAfterdelayLeft, value);
         }
 
         Modif32@ max_ammo = Modif32("max_ammo", 1.0f);//Max amount of times this can be used
 
         f32 getAmmoLeft()
         {
-            return vf32[AmmoLeft];
+            return getVF32(AmmoLeft);
         }
         void setAmmoLeft(f32 value, bool sync_value = true)
         {
-            vf32[AmmoLeft] = value;
-            if(sync_value){ syncAmmoLeft(); }
-        }
-        void syncAmmoLeft()
-        {
-            //TODO: sync somehow.
+            setVF32(AmmoLeft, value, sync_value);
         }
         
         Modif32@ knockback_per_use = Modif32("knockback_per_use", 0.0f);//pushes you around when activated, specifically it pushes you away from the direction your mouse is aiming.
@@ -895,32 +1057,23 @@ namespace it
             //Value that stores the current charge
             f32 getCurrentCharge()
             {
-                return vf32[CurrentCharge];
+                return getVF32(CurrentCharge);
             }
             void setCurrentCharge(f32 value, bool sync_value = true)
             {
-                vf32[CurrentCharge] = value;
-                if(sync_value) { syncCurrentCharge(); }
-            }
-            void syncCurrentCharge()
-            {
-
+                setVF32(CurrentCharge, value, sync_value);
             }
 
             //When this is true, charge_down_per_tick will not lower current_charge
             bool getStopDischarge()
             {
-                return vbool[StopDischarge];
+                return getVBool(StopDischarge);
             }
             void setStopDischarge(bool value, bool sync_value = true)
             {
-                vbool[StopDischarge] = value;
-                if(sync_value) { syncStopDischarge(); }
+                setVBool(StopDischarge, value, sync_value);
             }
-            void syncStopDischarge()
-            {
-                
-            }
+
 
             Modif32@ charge_down_per_tick = Modif32("charge_down_per_tick", 1.0f);//Amount the float above charge_up_time is subtracted by every tick. Does not take effect while charging up.
 
@@ -932,11 +1085,11 @@ namespace it
             //Charge uses can only happen when this is true. This is turned false after a charge use, and is only turned true after the button is triggered again.
             bool getChargeAllowance()
             {
-                return vbool[ChargeAllowance];
+                return getVBool(ChargeAllowance);
             }
             void setChargeAllowance(bool value)
             {
-                vbool[ChargeAllowance] = value;
+                setVBool(ChargeAllowance, value);
             }
 
             Modibool@ charge_during_use = Modibool("charge_during_use", false);//If this is true, this continues charging even when in use and not being able to use again. If this is false, this retains it's charge after using, but does not go higher or lower. 
@@ -957,6 +1110,7 @@ namespace it
     {
         QueuedShots = ActivatableFloatCount,
         ShotAfterdelayLeft,
+        LastShot,
 
         ItemFloatCount
     }
@@ -973,7 +1127,6 @@ namespace it
         item()
         {
             shot_func = @null;
-            last_shot = Nu::u32_max();
 
             shot_sfx = "";
             empty_total_ongoing_sfx = "";
@@ -1021,20 +1174,21 @@ namespace it
         {
             activatable::setVars();
 
-            vf32[QueuedShots] = 0;
-            vf32[ShotAfterdelayLeft] = 0;
+            setVF32(QueuedShots, 0);
+            setVF32(ShotAfterdelayLeft, 0);
+            setVF32(LastShot, Nu::s32_max());//How many ticks ago was the last shot.
         }
 
-        void BaseValueChanged() override//Called if a base value is changed.
+        void BaseValueChanged(int _name_hash) override//Called if a base value is changed.
         {
-            activatable::BaseValueChanged();
+            activatable::BaseValueChanged(_name_hash);
         }
         
         void DebugVars() override
         {
             activatable::DebugVars();
-            print("queued_shots = " + vf32[QueuedShots], debug_color);
-            print("shot_afterdelay_left = " + vf32[ShotAfterdelayLeft], debug_color);
+            print("queued_shots = " + getVF32(QueuedShots), debug_color);
+            print("shot_afterdelay_left = " + getVF32(ShotAfterdelayLeft), debug_color);
         }
 
 
@@ -1050,15 +1204,14 @@ namespace it
         {
             activatable::DelayLogic(@controls);
 
-            if(last_shot != Nu::u32_max())
-            {
-                last_shot++;
-            }
+            if(getVF32(LastShot) == Nu::s32_max()) { setVF32(LastShot, 0.0f, false); }
+            setVF32(LastShot, getVF32(LastShot) + 1, false);
 
-            if(vf32[ShotAfterdelayLeft] > 0)
+            if(getVF32(ShotAfterdelayLeft) > 0)
             {
-                vf32[ShotAfterdelayLeft] -= 1.0f;
-                if(vf32[ShotAfterdelayLeft] < 0.0f){ vf32[ShotAfterdelayLeft] = 0.0f; }
+                setVF32(ShotAfterdelayLeft, getVF32(ShotAfterdelayLeft) - 1.0f, false);
+                if(getVF32(ShotAfterdelayLeft) < 0.0f){ setVF32(ShotAfterdelayLeft, 0.0f, false); }
+                syncVF32(ShotAfterdelayLeft);
             }
         }
 
@@ -1079,12 +1232,12 @@ namespace it
                 else if(can_shoot_reason == 0)//Can shoot
                 {
                     ShootOnce();
-                    if(vf32[ShotAfterdelayLeft] == 0){ continue; }//If there is literally no shot_afterdelay, shoot again right here right now.
+                    if(getVF32(ShotAfterdelayLeft) == 0){ continue; }//If there is literally no shot_afterdelay, shoot again right here right now.
                 }
                 else if(can_shoot_reason == 5)//Out of ammo from ongoing queued up shots
                 {
                     //TODO: have a bool that changes how this behaves. If the bool is true; it removes all queued shots. If the bool is false; it behaves like it was shooting normally, just nothing was triggered and no heat was generated.
-                    vf32[QueuedShots] = 0;//Remove all queued up shots.
+                    setVF32(QueuedShots, 0);//Remove all queued up shots.
                     if(empty_total_ongoing_sfx != "") { Sound::Play(empty_total_ongoing_sfx); }
                 }
 
@@ -1107,11 +1260,11 @@ namespace it
         //5 == out of ammo from ongoing queued up shots
         u8 CanShootOnce()
         {
-            if(vf32[QueuedShots] == 0)
+            if(getVF32(QueuedShots) == 0)
             {
                 return 1;
             }
-            if(vf32[ShotAfterdelayLeft] > 0)
+            if(getVF32(ShotAfterdelayLeft) > 0)
             {
                 return 2;
             }
@@ -1132,14 +1285,14 @@ namespace it
         void ShootOnce(bool call_func = true)
         {
             setAmmoLeft(getAmmoLeft() - ammo_per_shot[CurrentValue]);
-            vf32[QueuedShots] -= 1;
-            last_shot = 0;
+            setVF32(QueuedShots, getVF32(QueuedShots) - 1);
+            setVF32(LastShot, 0);
 
-            if(vf32[ShotAfterdelayLeft] != 0)
+            if(getVF32(ShotAfterdelayLeft) != 0)
             {
-                Nu::Warning("shot_afterdelay_left was not 0 when shooting (was " + vf32[ShotAfterdelayLeft] + "), something somewhere somehow is wrong. Good luck.");
+                Nu::Warning("shot_afterdelay_left was not 0 when shooting (was " + getVF32(ShotAfterdelayLeft) + "), something somewhere somehow is wrong. Good luck.");
             }
-            vf32[ShotAfterdelayLeft] = shot_afterdelay[CurrentValue];
+            setVF32(ShotAfterdelayLeft, shot_afterdelay[CurrentValue]);
             if(getAmmoLeft() < 0.0f)
             {
                 Nu::Warning("ammo_left went below 0 (was " + getAmmoLeft() + "), something somewhere somehow is wrong. Good luck.");
@@ -1170,11 +1323,11 @@ namespace it
             u8 can_use_reason = activatable::CanUseOnce(@controls, false);
             if(can_use_reason != 0) { return can_use_reason; }//If something was wrong previously, just stop there.
             //Continue
-            if(use_with_queued_shots[CurrentValue] == false && vf32[QueuedShots] != 0)//If this isn't supposed to be used with queued shots, and there are queued shots
+            if(use_with_queued_shots[CurrentValue] == false && getVF32(QueuedShots) != 0)//If this isn't supposed to be used with queued shots, and there are queued shots
             {
                 return 3;//Can't be used right now
             }
-            if(use_with_shot_afterdelay[CurrentValue] == false && vf32[ShotAfterdelayLeft] != 0)//If this isn't supposed to be used when shot_afterdelay_left is not equal to 0
+            if(use_with_shot_afterdelay[CurrentValue] == false && getVF32(ShotAfterdelayLeft) != 0)//If this isn't supposed to be used when shot_afterdelay_left is not equal to 0
             {
                 return 9;//STAP
             }
@@ -1193,9 +1346,9 @@ namespace it
             {
                 //No ammo logic.
                 if(no_ammo_no_shots[CurrentValue] == true//and if no_ammo_no_shots is true
-                && vf32[QueuedShots] * ammo_per_shot[CurrentValue] + shots_per_use[CurrentValue] * ammo_per_shot[CurrentValue] > getAmmoLeft())//and if the current amount of shots plus the amount that would be added would go past max ammo.
+                && getVF32(QueuedShots) * ammo_per_shot[CurrentValue] + shots_per_use[CurrentValue] * ammo_per_shot[CurrentValue] > getAmmoLeft())//and if the current amount of shots plus the amount that would be added would go past max ammo.
                 {
-                    if(vf32[QueuedShots] != 0)//Queued shots still going on?
+                    if(getVF32(QueuedShots) != 0)//Queued shots still going on?
                     {
                         return 8;//Bye
                     }
@@ -1212,7 +1365,7 @@ namespace it
         {
             activatable::UseOnce(false);
 
-            vf32[QueuedShots] += shots_per_use[CurrentValue];//Queue up a shot
+            setVF32(QueuedShots, getVF32(QueuedShots) + shots_per_use[CurrentValue]);//Queue up a shot
         }
 
         //
@@ -1253,9 +1406,6 @@ namespace it
                 //vf32[ShotAfterdelayLeft];
             //
             //AMOUNT
-
-
-            u32 last_shot;//How many ticks ago was the last shot.
 
 
 
@@ -1327,12 +1477,12 @@ namespace it
         {
             item::setVars();
             
-            vf32[CurrentSpread] = 0;
+            setVF32(CurrentSpread, 0);
         }
         
-        void BaseValueChanged() override//Called if a base value is changed.
+        void BaseValueChanged(int _name_hash) override//Called if a base value is changed.
         {
-            item::BaseValueChanged();
+            item::BaseValueChanged(_name_hash);
         }
         
         void DebugVars() override
@@ -1354,19 +1504,19 @@ namespace it
             item::DelayLogic(@controls);
 
             //Lower current_spread by spread_loss_per_tick if above min_shot_spread
-            if(vf32[CurrentSpread] > min_shot_spread[CurrentValue])
+            if(getVF32(CurrentSpread) > min_shot_spread[CurrentValue])
             {
-                vf32[CurrentSpread] -= spread_loss_per_tick[CurrentValue];
+                setVF32(CurrentSpread, getVF32(CurrentSpread) - spread_loss_per_tick[CurrentValue]);
             }
             //If gone below min_shot_spread, set current_spread to min_shot_spread
-            if(vf32[CurrentSpread] < min_shot_spread[CurrentValue])
+            if(getVF32(CurrentSpread) < min_shot_spread[CurrentValue])
             {
-                vf32[CurrentSpread] = min_shot_spread[CurrentValue];
+                setVF32(CurrentSpread, min_shot_spread[CurrentValue]);
             }
             //If gone above max_shot_spread, set current_spread to max_shot_spread
-            if(vf32[CurrentSpread] > max_shot_spread[CurrentValue])
+            if(getVF32(CurrentSpread) > max_shot_spread[CurrentValue])
             {
-                vf32[CurrentSpread] = max_shot_spread[CurrentValue];
+                setVF32(CurrentSpread, max_shot_spread[CurrentValue]);
             }
         }
 
@@ -1380,21 +1530,22 @@ namespace it
             {
                 f32 random_deviation = Nu::getRandomF32(random_shot_spread[CurrentValue] * -0.5, (random_shot_spread[CurrentValue] * 0.5f));
 
-                f32 random_aim = Nu::getRandomF32(vf32[CurrentSpread] * -0.5f, vf32[CurrentSpread] * 0.5f);
+                f32 random_aim = Nu::getRandomF32(getVF32(CurrentSpread) * -0.5f, getVF32(CurrentSpread) * 0.5f);
 
                 print("\nrandom_deviation = " + random_deviation);
-                print("current_spread = " + vf32[CurrentSpread]);
+                print("current_spread = " + getVF32(CurrentSpread));
                 print("random_aim = " + random_aim);
 
                 shot_func(random_aim + random_deviation, @f32_array, @bool_array, @all_modifiers);//Call it
                 //TODO Apply knockback per shot somehow
             }
 
-            vf32[CurrentSpread] += spread_gain_per_shot[CurrentValue];
-            if(vf32[CurrentSpread] > max_shot_spread[CurrentValue])
+            setVF32(CurrentSpread, getVF32(CurrentSpread) + spread_gain_per_shot[CurrentValue], false);
+            if(getVF32(CurrentSpread) > max_shot_spread[CurrentValue])
             {
-                vf32[CurrentSpread] = max_shot_spread[CurrentValue];
+                setVF32(CurrentSpread, max_shot_spread[CurrentValue], false);
             }
+            syncVF32(CurrentSpread);
         }
 
 
