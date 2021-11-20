@@ -193,7 +193,7 @@ class Modif32 : ModiBase
                 Nu::Error("Failure to read value. Name = " + getName()); return false;
             }
         }*/
-        u16 base_val;
+        f32 base_val;//Kag doesn't like putting the array directly into the saferead, it corrupts, so this needs to grab the value to put it into the array.
         if(!bs.saferead_f32(base_val))
         {
             Nu::Error("Failure to read value. Name = " + getName()); return false;
