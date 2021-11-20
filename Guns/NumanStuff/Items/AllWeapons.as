@@ -43,6 +43,8 @@ void onDebugShot(it::IModiStore@ item, f32 shot_angle)
     item.DebugVars();
 }
 
+
+
 namespace wep
 {
     enum CreatedWeapon
@@ -54,39 +56,45 @@ namespace wep
     }
 }
 
-it::IModiStore@ CreateWeapon(u16 created_weapon, CBlob@ owner, u8 &out equip_slot, bool include_sfx = true, bool include_functions = true, bool include_modivars = true)
+it::IModiStore@ CreateItem(u16 created_item, CBlob@ owner, bool include_sfx = true, bool include_functions = true, bool include_modivars = true)
 {
-    switch (created_weapon)
-    {
-        case wep::TestWeapon:
-            return @TestWeapon(created_weapon, @owner, equip_slot, include_sfx, include_functions, include_modivars);
-        case wep::StandardPistol:
-            return @StandardPistol(created_weapon, @owner, equip_slot, include_sfx, include_functions, include_modivars);
-        default:
-            Nu::Error("No found weapon with created_weapon " + created_weapon);
-            break;
+    if(created_item < wep::WeaponCount)
+    {//Weapons
+        switch (created_item)
+        {
+            case wep::TestWeapon:
+                return @TestWeapon(created_item, @owner, include_sfx, include_functions, include_modivars);
+            case wep::StandardPistol:
+                return @StandardPistol(created_item, @owner, include_sfx, include_functions, include_modivars);
+            default:
+                Nu::Error("No found item with created_item " + created_item);
+                break;
+        }
     }
-
+    else
+    {//Items
+        Nu::Error("No found item with created_item " + created_item);
+    }
     return @null;
 }
 
-it::itemaim@ TestWeapon(u16 created_weapon, CBlob@ owner, u8 &out equip_slot, bool include_sfx, bool include_functions, bool include_modivars)
+it::itemaim@ TestWeapon(u16 created_weapon, CBlob@ owner, bool include_sfx, bool include_functions, bool include_modivars)
 {
-    equip_slot = 0;//0 is primary, 1 is secondary, 2 is whatever.
-    
-
     print("created TestItem");   
 
     it::itemaim@ example_thing = @it::itemaim();
     example_thing.Init(created_weapon);
 
+    example_thing.setEquipSlot(0);//0 is primary, 1 is secondary, 2 is whatever.
+
     example_thing.setOwner(@owner);
     
+
     if(include_functions)
     {
-        example_thing.addUseListener(@onDebugUse);
+        //example_thing.addUseListener(@onDebugUse);
 
-        example_thing.addShotListener(@onDebugShot);
+        //example_thing.addShotListener(@onDebugShot);
     }
 
     if(include_sfx)
@@ -102,6 +110,8 @@ it::itemaim@ TestWeapon(u16 created_weapon, CBlob@ owner, u8 &out equip_slot, bo
 
     if(include_modivars)
     {
+        example_thing.setSyncModivars(false);
+        
         example_thing.max_ammo[BaseValue] = 17;
         example_thing.setAmmoLeft(example_thing.max_ammo[CurrentValue]);
 
@@ -140,6 +150,8 @@ it::itemaim@ TestWeapon(u16 created_weapon, CBlob@ owner, u8 &out equip_slot, bo
         example_thing.spread_gain_per_shot[BaseValue] = 30.0f;
 
         example_thing.spread_loss_per_tick[BaseValue] = 1.0f;
+
+        example_thing.setSyncModivars(true);
     }
     
 
@@ -153,13 +165,12 @@ it::itemaim@ TestWeapon(u16 created_weapon, CBlob@ owner, u8 &out equip_slot, bo
     return @example_thing;
 }
 
-it::itemaim@ StandardPistol(u16 created_weapon, CBlob@ owner, u8 &out equip_slot, bool include_sfx, bool include_functions, bool include_modivars)
+it::itemaim@ StandardPistol(u16 created_weapon, CBlob@ owner, bool include_sfx, bool include_functions, bool include_modivars)
 {
-    equip_slot = 0;//0 is primary, 1 is secondary, 2 is whatever.
-    
-
     it::itemaim@ weapon = @it::itemaim();
     weapon.Init(created_weapon);
+
+    weapon.setEquipSlot(0);
 
     weapon.setOwner(@owner);
 
@@ -183,8 +194,12 @@ it::itemaim@ StandardPistol(u16 created_weapon, CBlob@ owner, u8 &out equip_slot
 
     if(include_modivars)
     {
+        weapon.setSyncModivars(false);
+
         weapon.max_ammo[BaseValue] = 17;
         weapon.setAmmoLeft(weapon.max_ammo[CurrentValue]);
+    
+        weapon.setSyncModivars(true);
     }
 
     return @weapon;

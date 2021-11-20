@@ -48,21 +48,6 @@ enum WhatValue
     ValueCount
 }
 
-class ModiHow//For modifying ModiVars
-{
-    ModiHow(string _name, f32 _by_what, u8 _how)
-    {
-        name = _name;
-        name_hash = _name.getHash();
-        by_what = _by_what;
-        how = _how;
-    }
-    string name;//Maybe remove this for performance reasons later?
-    int name_hash;//Name of ModiVar to modify
-    f32 by_what;
-    u8 how;
-}
-
 //parameter 1 is name_hash
 funcdef void BASE_VALUE_CHANGED(int);
 

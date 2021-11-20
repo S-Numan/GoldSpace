@@ -6,7 +6,7 @@
 
 void onInit(CBlob@ this)
 {
-    it::onInitSync(@this);
+    it::onInit(@this);
 
     //Can't cast properly in kag angelscript, so I literally don't know how to do this in a better way.
     array<it::IModiStore@>@ equipment = @array<it::IModiStore@>(11, @null);
@@ -15,6 +15,12 @@ void onInit(CBlob@ this)
     this.set("equipment", @equipment);//Equipment
     
     this.set_u8("current_equip", 0);//Currently equiped thing in equipment array
+
+    if(isClient())
+    {
+        this.set_u32("ded", getGameTime() + 1);
+        this.Sync("ded", true);
+    }
 }
 
 void onReload(CBlob@ this)
@@ -95,23 +101,11 @@ f32 getAimAngle(CBlob@ this, CBlob@ holder)
 
 void onCommand(CBlob@ this, u8 cmd, CBitStream@ params)
 {
-    if(it::onCommandSync(@this, cmd, @params))
+    if(it::onCommand(@this, cmd, @params))
     {
         
     }
     else
-    {
-
-    }
-}
-
-class handlee
-{
-    handlee()
-    {
-
-    }
-    handlee(handlee@ hand)
     {
 
     }

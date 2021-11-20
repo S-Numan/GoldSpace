@@ -8,6 +8,78 @@ enum ModifierTypes
     PassiveAndActive
 }
 
+namespace mod
+{
+    enum CreatedModifiers
+    {
+        ExampleModifier = 1,
+        ExampleModifier2,
+
+        ModifierCount
+    }
+}
+
+IModifier@ CreateModifier(u16 created_modifier, array<Modif32@>@ modi_array)
+{
+    switch (created_modifier)
+    {
+        case mod::ExampleModifier:
+            return @ExampleModifier(@modi_array);
+        case mod::ExampleModifier2:
+            return @ExampleModifier2(@modi_array);
+        default:
+            Nu::Error("No found modifier with created_modifier " + created_modifier);
+            break;
+    }
+
+    return @null;
+}
+
+class ModiHow//For modifying ModiVars
+{
+    ModiHow()
+    {
+        
+    }
+    ModiHow(string _name, f32 _by_what, u8 _how)
+    {
+        Init(_name, _name.getHash(), _by_what, _how);
+    }
+    ModiHow(int _name_hash, f32 _by_what, u8 _how)
+    {
+        Init("" + _name_hash, _name_hash, _by_what, _how);
+    }
+    private void Init(string _name, int _name_hash, f32 _by_what, u8 _how)
+    {
+        name = _name;
+        name_hash = _name_hash;
+        by_what = _by_what;
+        how = _how;
+    }
+    bool Serialize(CBitStream@ bs)
+    {
+        bs.write_s32(name_hash);
+        bs.write_u8(how);
+        bs.write_f32(by_what);
+
+        return true;
+    }
+    bool Deserialize(CBitStream@ bs)
+    {
+        if(!bs.saferead_s32(name_hash)) { Nu::Error("Failure to read value."); return false; }
+        name = "" + name_hash;
+        if(!bs.saferead_u8(how)) { Nu::Error("Failure to read value. Name = " + name); return false; }
+        if(!bs.saferead_f32(by_what)) { Nu::Error("Failure to read value. Name = " + name); return false; }
+
+        return true;
+    }
+    
+    string name;//Maybe remove this for performance reasons later?
+    int name_hash;//Name of ModiVar to modify
+    f32 by_what;
+    u8 how;
+}
+
 u16 getModiVarPos(array<Modif32@>@ modi_array, int name_hash)
 {
     for(u16 i = 0; i < modi_array.size(); i++)
@@ -21,11 +93,28 @@ u16 getModiVarPos(array<Modif32@>@ modi_array, int name_hash)
     return Nu::u16_max();
 }
 
-class DefaultModifier
+interface IModifier
+{
+    void Init(array<Modif32@>@ _modi_array);
+    string getName();
+    int getNameHash();
+    void setName(string _name);
+    u8 getModifierType();
+    u16 getInitialModifier();
+    void addModifier(string _name, f32 _by_what, u8 _how);
+    void ActiveTick();
+    void PassiveTick();
+    void AntiPassiveTick();
+    void ModiHowPassiveTick(bool invert_values = false);
+}
+
+class DefaultModifier : IModifier
 {    
     void Init(array<Modif32@>@ _modi_array)
     {
         @modi_array = @_modi_array;
+
+        initial_modifier = 0;
         
         modify_how = array<ModiHow@>();
     
@@ -37,6 +126,15 @@ class DefaultModifier
     string icon;
     string name;
     int name_hash;
+    string getName()
+    {
+        return name;
+    }
+    int getNameHash()
+    {
+        return name_hash;
+    }
+
 
     array<Modif32@>@ modi_array;
 
@@ -52,6 +150,14 @@ class DefaultModifier
     {
         return modifier_type;
     }
+
+
+    private u16 initial_modifier;
+    u16 getInitialModifier()
+    {
+        return initial_modifier;
+    }
+    
 
     array<ModiHow@> modify_how;
 
@@ -108,6 +214,14 @@ class DefaultModifier
                 //+ modify_how[i].by_what <- for this ModiHow in the array, add it's value to AfterAdd
                 //* _invert; <- invert the adding value if desired, this is generally only done when removing the modifier
             }
+            else if(modify_how[i].how == MinValue)
+            {
+                //modi_array[modi_pos][MinValue] = modify_how[i].by_what;//How is this supposed to be inverted?
+            }
+            else if(modify_how[i].how == MaxValue)
+            {
+                //modi_array[modi_pos][MaxValue] = modify_how[i].by_what;
+            }
             else
             {
                 Nu::Error("Problemo. Too lazy to type out why.");
@@ -122,8 +236,8 @@ class DefaultModifier
             }*/
         }
     }
-
 }
+
 
 
 
@@ -134,6 +248,9 @@ class ExampleModifier : DefaultModifier
     ExampleModifier(array<Modif32@>@ modi_array)
     {
         Init(@modi_array);
+        
+        initial_modifier = mod::ExampleModifier;
+        
         modifier_type = PassiveAndActive;
         
         setName("example");
@@ -154,7 +271,7 @@ class ExampleModifier : DefaultModifier
         Random@ rnd = Random(getGameTime());//Random with seed
         float random_number = Nu::getRandomF32(0, 2);//Random number between 0 and 2 (float)
 
-        modi_array[modi_pos][AddMult] = modi_array[modi_pos][AddMult] - random_number;//Subtract the multiplier by this number
+        //modi_array[modi_pos][AddMult] = modi_array[modi_pos][AddMult] - random_number;//Subtract the multiplier by this number
     }
     void PassiveTick() override //Called on creation
     {
@@ -178,7 +295,10 @@ class ExampleModifier2 : DefaultModifier
     ExampleModifier2(array<Modif32@>@ modi_array)
     {
         Init(@modi_array);
+
         modifier_type = Passive;
+
+        initial_modifier = mod::ExampleModifier2;
 
         setName("example2");
 

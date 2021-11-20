@@ -1,6 +1,7 @@
 #include "NuLib.as";
 #include "ModiVars.as";
 #include "WeaponModifiers.as";
+#include "AllWeapons.as";
 
 //Change clip to mag. It's shorter and more accurate based on the logic.
 
@@ -91,13 +92,16 @@ namespace it
 
         void setOwner(CBlob@ _blob);
         CBlob@ getOwner();
+
+        u16 getEquipSlot();
+        void setEquipSlot(u16 value);
         
         bool Serialize(CBitStream@ bs, bool include_sfx = true);
         bool Deserialize(CBitStream@ bs, bool &out include_sfx = void);
 
         array<Modif32@>@ getF32Array();
         array<Modibool@>@ getBoolArray();
-        array<DefaultModifier@>@ getAllModifiers();
+        array<IModifier@>@ getAllModifiers();
         array<f32>@  getVF32();
         f32 getVF32(u8 pos);
         void setVF32(u8 pos, f32 value, bool sync_value = true);
@@ -114,7 +118,7 @@ namespace it
         u16 getModiboolPoint(int _name_hash);
         u16 getModiboolPoint(string _name);
 
-        bool addModifier(DefaultModifier@ _modi);
+        bool addModifier(IModifier@ _modi);
         bool removeModifier(u16 _pos);
         bool removeModifier(int _name_hash);
         bool removeModifier(string _name);
@@ -130,6 +134,9 @@ namespace it
 
         void setVars();
         void setModiVars();
+
+        bool getSyncModivars();
+        void setSyncModivars(bool value);
 
         void BaseValueChanged(int _name_hash);
 
@@ -166,7 +173,11 @@ namespace it
 
             @owner_blob = @null;
 
+            sync_modivars = true;
+
             debug_color = SColor(255, 22, 222, 22);
+
+            equip_slot = 0;
 
             @f32_array = @array<Modif32@>();
             @vf32 = @array<f32>();
@@ -176,7 +187,7 @@ namespace it
             @vbool = @array<bool>();
             @vboolsync = @array<bool>();
 
-            @all_modifiers = @array<DefaultModifier@>();
+            @all_modifiers = @array<IModifier@>();
 
             tag_array = array<int>();
             tag_array.reserve(5);
@@ -244,6 +255,16 @@ namespace it
             @owner_blob = @_blob;
         }
 
+        private u16 equip_slot;
+        u16 getEquipSlot()
+        {
+            return equip_slot;
+        }
+        void setEquipSlot(u16 value)
+        {
+            equip_slot = value;
+        }
+
         bool Serialize(CBitStream@ bs, bool include_sfx = true)
         {
             u16 i;
@@ -256,10 +277,19 @@ namespace it
 
             bs.write_u16(getInitialItem());
 
-            bs.write_u16(getID());
+            bs.write_u16(getEquipSlot());//Equip slot
+
+            if(getID() == Nu::u16_max()) { Nu::Warning("ID not set. Aborting"); return false;}
+            bs.write_u16(getID());//ID
 
             bs.write_u16(owner_blob.getNetworkID());
 
+            bs.write_u16(all_modifiers.size());
+
+            for(i = 0; i < all_modifiers.size(); i++)
+            {
+                bs.write_u16(all_modifiers[i].getInitialModifier());
+            }
             for(i = 0; i < vf32.size(); i++)
             {
                 bs.write_f32(vf32[i]);
@@ -300,6 +330,16 @@ namespace it
             @owner_blob = @getBlobByNetworkID(owner_netid);
             if(owner_blob == @null) { Nu::Error("serialized owner_blob was null. attempted netid was " + owner_netid + " id was " + _id); }
             
+            u16 modifier_size;
+            if(!bs.saferead_u16(modifier_size)){ Nu::Error("Failed to deserialize modifier_size"); return false; }
+            all_modifiers.resize(modifier_size);
+
+            for(i = 0; i < modifier_size; i++)
+            {
+                u16 initial_modifier;
+                if(!bs.saferead_u16(initial_modifier)) { Nu::Error("Failed to deserialize initial_modifier on " + i); return false; }
+                @all_modifiers[i] = CreateModifier(initial_modifier, f32_array);
+            }
             for(i = 0; i < vf32.size(); i++)
             {
                 if(!bs.saferead_f32(vf32[i])) { Nu::Error("Failed to deserialize vf32 on " + i); return false; }
@@ -340,13 +380,16 @@ namespace it
 
         bool Tick(CControls@ controls)
         {
+            if(ticks_since_created == Nu::u32_max())//In this area, things only happen once.
+            {
+                if(getID() == Nu::u16_max())
+                {
+                    Nu::Error("ID not set. Cannot run Tick before ID is set."); return false;
+                }
+            }
+
             ticks_since_created++;
 
-            if(getID() == Nu::u16_max())
-            {
-                Nu::Error("ID not set. Cannot run Tick before ID is set."); return false;
-            }
-            
             return true;
         }
 
@@ -364,8 +407,8 @@ namespace it
             return @bool_array;
         }
 
-        array<DefaultModifier@>@ all_modifiers;//All modifiers
-        array<DefaultModifier@>@ getAllModifiers()
+        array<IModifier@>@ all_modifiers;//All modifiers
+        array<IModifier@>@ getAllModifiers()
         {
             return @all_modifiers;
         }
@@ -398,7 +441,7 @@ namespace it
             CBitStream params;
             params.write_u16(getID());
 
-            params.write_u8(pos);
+            params.write_u16(pos);
             params.write_f32(vf32[pos]);
 
             owner_blob.SendCommand(owner_blob.getCommandID("syncvf32"), params);
@@ -438,7 +481,7 @@ namespace it
             CBitStream params;
             params.write_u16(getID());
 
-            params.write_u8(pos);
+            params.write_u16(pos);
             params.write_bool(vbool[pos]);
 
             owner_blob.SendCommand(owner_blob.getCommandID("syncvbool"), params);
@@ -486,12 +529,22 @@ namespace it
             return getModiboolPoint(_name.getHash());
         }
 
+        bool sync_modivars;
+        bool getSyncModivars()
+        {
+            return sync_modivars;
+        }
+        void setSyncModivars(bool value)
+        {
+            sync_modivars = value;
+        }
 
         void BaseValueChanged(int _name_hash)//Called if a base value is changed.
         {
             //Sync
             if(owner_blob == @null) { Nu::Error("owner_blob was null on attempt to sync in BaseValueChanged " + _name_hash); return; }
-                
+            if(!owner_blob.isMyPlayer()) { return; }
+
             CBitStream params;
             params.write_u16(getID());
 
@@ -500,7 +553,7 @@ namespace it
             if(point != Nu::u16_max())
             {
                 //Sync Modif32
-                params.write_u8(point);
+                params.write_u16(point);
                 params.write_f32(f32_array[point][BaseValue]);
 
                 owner_blob.SendCommand(owner_blob.getCommandID("syncf32base"), params);
@@ -510,7 +563,7 @@ namespace it
                 point = getModiboolPoint(_name_hash);
                 if(point == Nu::u16_max()) { Nu::Error("Could not find ModiVar. point = " + point); return; }
                 //Sync Modibool
-                params.write_u8(point);
+                params.write_u16(point);
                 params.write_bool(bool_array[point][BaseValue]);
 
                 owner_blob.SendCommand(owner_blob.getCommandID("syncboolbase"), params);
@@ -584,21 +637,35 @@ namespace it
         }
 
 
-        bool addModifier(DefaultModifier@ _modi)
+        bool addModifier(IModifier@ _modi)
         {
-            _modi.PassiveTick();
-            
-            all_modifiers.push_back(@_modi);
+            if(owner_blob == @null) { Nu::Error("owner_blob was null on attempt to sync"); return false; }
+            if(!owner_blob.isMyPlayer()) { return true; }
+
+            CBitStream params;
+
+            params.write_u16(getID());
+
+            params.write_u16(0);//Not required, but sent to make my life easier.
+
+            params.write_u16(_modi.getInitialModifier());
+
+            owner_blob.SendCommand(owner_blob.getCommandID("add_modifier"), params);
 
             return true;
         }
         bool removeModifier(u16 _pos)
         {
+            if(owner_blob == @null) { Nu::Error("owner_blob was null on attempt to sync"); return false; }
+            if(!owner_blob.isMyPlayer()) { return true; }
             if(_pos >= all_modifiers.size()) { Nu::Error("Reached out of bounds. Attempted to reach " + _pos + " while all_modifiers.size() was " + all_modifiers.size()); return false; }
 
-            all_modifiers[_pos].AntiPassiveTick();
-            
-            all_modifiers.removeAt(_pos);
+            CBitStream params;
+            params.write_u16(getID());//ID
+            params.write_u16(_pos);//array_pos
+            params.write_u16(all_modifiers[_pos].getInitialModifier());//initial_modifier
+
+            owner_blob.SendCommand(owner_blob.getCommandID("remove_modifier"), params);
 
             return true;
         }
@@ -610,7 +677,7 @@ namespace it
             
             for(i = 0; i < all_modifiers.size(); i++)
             {
-                if(all_modifiers[i].name_hash == _name_hash)
+                if(all_modifiers[i].getNameHash() == _name_hash)
                 {
                     return removeModifier(i);
                 }
@@ -623,7 +690,6 @@ namespace it
             int _name_hash = _name.getHash();
             return removeModifier(_name_hash);
         }
-
 
 
         array<int> tag_array;
@@ -780,12 +846,12 @@ namespace it
 
         void setVars() override
         {
-            setVF32(UseAfterdelayLeft, 0);
-            setVF32(AmmoLeft, 0);            
-            setVF32(CurrentCharge, 0);
+            setVF32(UseAfterdelayLeft, 0, false);
+            setVF32(AmmoLeft, 0, false);
+            setVF32(CurrentCharge, 0, false);
             
-            setVBool(ChargeAllowance, false);
-            setVBool(StopDischarge, false);
+            setVBool(ChargeAllowance, false, false);
+            setVBool(StopDischarge, false, false);
         }
 
         void BaseValueChanged(int _name_hash) override//Called if a base value is changed.
@@ -1233,9 +1299,9 @@ namespace it
         {
             activatable::setVars();
 
-            setVF32(QueuedShots, 0);
-            setVF32(ShotAfterdelayLeft, 0);
-            setVF32(LastShot, Nu::s32_max());//How many ticks ago was the last shot.
+            setVF32(QueuedShots, 0, false);
+            setVF32(ShotAfterdelayLeft, 0, false);
+            setVF32(LastShot, Nu::s32_max(), false);//How many ticks ago was the last shot.
         }
 
         void BaseValueChanged(int _name_hash) override//Called if a base value is changed.
@@ -1559,7 +1625,7 @@ namespace it
         {
             item::setVars();
             
-            setVF32(CurrentSpread, 0);
+            setVF32(CurrentSpread, 0, false);
         }
         
         void BaseValueChanged(int _name_hash) override//Called if a base value is changed.
@@ -2002,22 +2068,123 @@ namespace it
 
 
 
-
-    void onInitSync(CBlob@ this)
+    void onInit(CBlob@ this)
     {
+        this.Tag("equipment_holder");
+
+        this.addCommandID("deserialize_equipment");
+
         this.addCommandID("syncvf32");
         this.addCommandID("syncvbool");
         this.addCommandID("syncf32base");
         this.addCommandID("syncboolbase");
+
+        this.addCommandID("add_modifier");
+        this.addCommandID("remove_modifier");
     }
 
-    bool onCommandSync(CBlob@ this, u8 cmd, CBitStream@ params)
+    void onNewPlayerJoin(CRules@ this, CPlayer@ player)
     {
-        array<bool> any_true = array<bool>(4);
+        if(!isServer()) { return; }
+        if(player == @null) { Nu::Error("WAT!?"); return;}
+        //Server only syncing
+        
+        array<CBlob@>@ blobs;
+        if(getBlobsByTag("equipment_holder", blobs))
+        {
+            for(u16 i = 0; i < blobs.size(); i++)
+            {
+                array<it::IModiStore@>@ equipment;
+                if(!blobs[i].get("equipment", @equipment)) { Nu::Error("equipment array was null"); return; }
+                
+                for(u16 q = 0; q < equipment.size(); q++)
+                {
+                    if(equipment[q] == @null) { continue; }
+                    SyncEquipment(@blobs[i], EquipmentBitStream(@equipment, q), @player);
+                }
+            }
+        }
+    }
+
+    CBitStream@ EquipmentBitStream(array<it::IModiStore@>@ equipment, u16 pos, bool include_sfx = false)
+    {
+        CBitStream@ bs = @CBitStream();//Create a cbitstream
+        equipment[pos].Serialize(@bs//Serialize
+        , include_sfx);//Include sfx?
+        return @bs;
+    }
+
+    void SyncEquipment(CBlob@ blob, CBitStream@ bs)
+    {
+        blob.SendCommand(blob.getCommandID("deserialize_equipment"), bs);//Give this equipment to this for all clients and the server.
+    }
+    void SyncEquipment(CBlob@ blob, CBitStream@ bs, CPlayer@ player)
+    {
+        if(!isServer()) { Nu::Error("cannot use SyncEquipment with the player parameter on client unfortunately."); return; }
+        blob.server_SendCommandToPlayer(blob.getCommandID("deserialize_equipment"), bs, player);
+    }
+
+    void onDie( CBlob@ this )
+    {
+        //Drop higs for each equipment if this is tagged "drop_higs"
+    }
+
+    u16 getItemByID(array<it::IModiStore@>@ modi_store, u16 id)
+    {
+        for(u16 i = 0; i < modi_store.size(); i++)
+        {
+            if(modi_store[i] == @null) { continue; }
+            if(modi_store[i].getID() == id)
+            {
+                return i;
+            }
+        }
+        
+        return Nu::u16_max();
+    }
+
+    bool onCommand(CBlob@ this, u8 cmd, CBitStream@ params)
+    {
+        print("item command");
+        if(this.getCommandID("deserialize_equipment") == cmd)
+        {
+            array<it::IModiStore@>@ equipment;
+            if(!this.get("equipment", @equipment)) { Nu::Error("equipment array was null"); return true; }
+
+            if(equipment == @null) { Nu::Warning("equipment was null on deserialize_equipment"); return true; }
+
+            u8 class_type;
+            if(!params.saferead_u8(class_type)) { Nu::Error("failure to read class_type."); return true; }
+
+            u16 initial_item;
+            if(!params.saferead_u16(initial_item)) { Nu::Error("failure to read initial_item."); return true; }
+
+            u16 equip_slot;
+
+            IModiStore@ equip = @CreateItem(initial_item, @this,
+            true,//SFX
+            true,//Functions
+            false//Modivars
+            );
+            
+            if(!params.saferead_u16(equip_slot)) { Nu::Error("failure to read equip_slot."); return true; }
+
+            equip.Deserialize(@params);
+
+            @equipment[equip_slot] = @equip;
+            
+            //this.set_u8("equip_slot", equip_slot);
+        
+            return true;
+        }
+
+        array<bool> any_true = array<bool>(6);
         any_true[0] = (this.getCommandID("syncvf32") == cmd);
         any_true[1] = (this.getCommandID("syncvbool") == cmd);
         any_true[2] = (this.getCommandID("syncf32base") == cmd);
         any_true[3] = (this.getCommandID("syncboolbase") == cmd);
+        any_true[4] = (this.getCommandID("add_modifier") == cmd);
+        any_true[5] = (this.getCommandID("remove_modifier") == cmd);
 
         bool one_is_true = false;
 
@@ -2031,44 +2198,74 @@ namespace it
 
         if(!one_is_true) { return false; }
         
-        u16 id;
+        u16 id;//id
         if(!params.saferead_u16(id)) { Nu::Error("bleh0"); return true;}
         
-        u8 array_pos; 
-        if(!params.saferead_u8(array_pos)) { Nu::Error("bleh1"); return true;}
-
         array<it::IModiStore@>@ equipment;
         if(!this.get("equipment", @equipment)) { Nu::Error("equipment array was null"); return true; }
 
-        if(equipment[id] == @null) { Nu::Error("bleh3"); return true;}
+        u16 es = getItemByID(@equipment, id);//equip_slot
+        if(es == Nu::u16_max()) { Nu::Error("id not found in array. equipment size = " + equipment.size() + " cmd = " + cmd); return true;}
 
-        if(any_true[0])
+
+        u16 array_pos; 
+        if(!params.saferead_u16(array_pos)) { Nu::Error("bleh1"); return true;}
+
+        if(equipment[es] == @null) { Nu::Error("bleh3"); return true;}
+
+        if(any_true[0])//syncvf32
         {
             f32 value;
             if(!params.saferead_f32(value)) { Nu::Error("bleh0"); return true;}
 
-            equipment[id].getVF32()[array_pos] = value;
+            equipment[es].getVF32()[array_pos] = value;
         }
-        else if(any_true[1])
+        else if(any_true[1])//syncvbool
         {
             bool value;
             if(!params.saferead_bool(value)) { Nu::Error("bleh1"); return true;}
 
-            equipment[id].getVBool()[array_pos] = value;
+            equipment[es].getVBool()[array_pos] = value;
         }
-        else if(any_true[2])
+        else if(any_true[2])//syncf32base
         {
             f32 value;
             if(!params.saferead_f32(value)) { Nu::Error("bleh2"); return true;}
 
-            equipment[id].getF32Array()[array_pos][BaseValue] = value;
+            equipment[es].getF32Array()[array_pos][BaseValue] = value;
         }
-        else if(any_true[3])
+        else if(any_true[3])//syncboolbase
         {
             bool value;
             if(!params.saferead_bool(value)) { Nu::Error("bleh3"); return true;}
 
-            equipment[id].getBoolArray()[array_pos][BaseValue] = value;
+            equipment[es].getBoolArray()[array_pos][BaseValue] = value;
+        }
+        else if(any_true[4])//add_modifier
+        {
+            u16 initial_modifier;
+            if(!params.saferead_u16(initial_modifier)) { Nu::Error("bler0"); return true;}
+            
+            array<IModifier@>@ all_modifiers = @equipment[es].getAllModifiers();
+
+            IModifier@ _modi = @CreateModifier(initial_modifier, @equipment[es].getF32Array());
+            all_modifiers.push_back(@_modi);
+            _modi.PassiveTick();
+        }
+        else if(any_true[5])//remove_modifier
+        {
+            u16 initial_modifier;
+            if(!params.saferead_u16(initial_modifier)) { Nu::Error("bler1"); return true;}
+            
+            
+            array<IModifier@>@ all_modifiers = @equipment[es].getAllModifiers();
+            
+            if(array_pos >= all_modifiers.size()) { Nu::Error("went above all_modifiers size in remove_modifier command. array_pos = " + array_pos); return true; }
+            if(all_modifiers[array_pos].getInitialModifier() != initial_modifier) { Nu::Error("Modifier mismatch in remove_modifier command. array_pos = " + array_pos + " initial_modifier = " + initial_modifier); return true; }
+            
+            all_modifiers[array_pos].AntiPassiveTick();
+            
+            all_modifiers.removeAt(array_pos);
         }
 
         return true;
