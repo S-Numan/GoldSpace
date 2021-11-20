@@ -155,8 +155,8 @@ it::itemaim@ TestWeapon(u16 created_weapon, CBlob@ owner, bool include_sfx, bool
     }
     
 
-
-
+    IModifier@ _modi = CreateModifier(mod::SUPPRESSINGFIRE, @example_thing.getF32Array());
+    example_thing.addModifier(@_modi, false);//false means don't sync.
 
 
     example_thing.DebugModiVars(true);

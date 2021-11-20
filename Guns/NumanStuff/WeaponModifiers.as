@@ -14,6 +14,7 @@ namespace mod
     {
         ExampleModifier = 1,
         ExampleModifier2,
+        SUPPRESSINGFIRE,
 
         ModifierCount
     }
@@ -27,6 +28,8 @@ IModifier@ CreateModifier(u16 created_modifier, array<Modif32@>@ modi_array)
             return @ExampleModifier(@modi_array);
         case mod::ExampleModifier2:
             return @ExampleModifier2(@modi_array);
+        case mod::SUPPRESSINGFIRE:
+            return @SUPPRESSINGFIRE(@modi_array);
         default:
             Nu::Error("No found modifier with created_modifier " + created_modifier);
             break;
@@ -252,8 +255,6 @@ class ExampleModifier : DefaultModifier
         initial_modifier = mod::ExampleModifier;
         
         modifier_type = PassiveAndActive;
-        
-        setName("example");
 
         addModifier("morium_cost", 1.0f, AfterAdd);//Add 1 to the cost
         addModifier("morium_cost", 1.0f, AddMult);//Add 1.0f to what the end result will be multiplied by.
@@ -306,4 +307,24 @@ class ExampleModifier2 : DefaultModifier
     }
 
     //Nothing more is required.
+}
+
+class SUPPRESSINGFIRE : DefaultModifier//SUPRESSING FIRE!: Much larger clip size, larger max ammo, longer reload time, cheaper ammo, less heat, more recoil.
+{
+    SUPPRESSINGFIRE(array<Modif32@>@ modi_array)
+    {
+        Init(@modi_array);
+
+        modifier_type = Passive;
+
+        initial_modifier = mod::SUPPRESSINGFIRE;
+
+        addModifier("max_ammo", 1.0f, AddMult);//Double ammo
+        addModifier("shot_afterdelay", -0.5f, AddMult);//Double firerate
+        //Clip size
+        //Reload time
+        //addModifier("morium_cost", -0.5f, AddMult);//Morium cost for the entire weapon is always the same. It always costs the same amount no matter the max_ammo. More ammo means cheaper ammo in a way.
+        //Heat
+        addModifier("spread_gain_per_shot", 1.0f, AddMult);//Double spread
+    }
 }

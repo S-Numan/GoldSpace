@@ -23,6 +23,14 @@
 
 namespace it
 {
+
+    bool IsMine(CBlob@ blob)
+    {
+        if(!isServer() && !blob.isMyPlayer()) { return false; }//If is client and not my blob, don't update.
+        if(!isClient() && blob.getPlayer() != @null) { return false; } //If is server and a player is attached
+    
+        return true;
+    }
             
     enum RarityTypes
     {
@@ -118,10 +126,10 @@ namespace it
         u16 getModiboolPoint(int _name_hash);
         u16 getModiboolPoint(string _name);
 
-        bool addModifier(IModifier@ _modi);
-        bool removeModifier(u16 _pos);
-        bool removeModifier(int _name_hash);
-        bool removeModifier(string _name);
+        bool addModifier(IModifier@ _modi, bool sync = true);
+        bool removeModifier(u16 _pos, bool sync = true);
+        bool removeModifier(int _name_hash, bool sync = true);
+        bool removeModifier(string _name, bool sync = true);
         void DebugModiVars(bool full_data = false);
         void TickActiveModifiers();
 
@@ -440,6 +448,7 @@ namespace it
         {
             if(!vf32sync[pos]) { return; }
             if(owner_blob == @null) { Nu::Error("owner_blob was null on attempt to sync " + pos); return; }
+            if(!IsMine(@owner_blob)) { Nu::Warning("Client/Server that didn't own blob tried syncing"); return; }//Not sure if this is needed
                 
             CBitStream params;
             params.write_u16(getID());
@@ -468,7 +477,7 @@ namespace it
         }
         void setVBool(u8 pos, bool value, bool sync_value = true)
         {
-            if(pos >= vbool.size()) { Nu::Error("Attempted to go past max arraya size"); return; }
+            if(pos >= vbool.size()) { Nu::Error("Attempted to go past max array size"); return; }
             
             vbool[pos] = value;
             if(sync_value)//If this value is supposed to sync.
@@ -480,6 +489,7 @@ namespace it
         {
             if(!vboolsync[pos]) { return; }
             if(owner_blob == @null) { Nu::Error("owner_blob was null on attempt to sync " + pos); return; }
+            if(!IsMine(@owner_blob)) { Nu::Warning("Client/Server that didn't own blob tried syncing"); return; }//Not sure if this is needed
 
             CBitStream params;
             params.write_u16(getID());
@@ -544,12 +554,9 @@ namespace it
 
         void BaseValueChanged(int _name_hash)//Called if a base value is changed.
         {
-            //Sync
             if(owner_blob == @null) { Nu::Error("owner_blob was null on attempt to sync in BaseValueChanged " + _name_hash); return; }
-            if(!owner_blob.isMyPlayer()) { return; }
+            if(!IsMine(@owner_blob)) { return; }
 
-            //Refresh modifiers
-            
             if(!getSyncModivars()) { return; }
 
             CBitStream params;
@@ -634,10 +641,17 @@ namespace it
         }
 
 
-        bool addModifier(IModifier@ _modi)
+        bool addModifier(IModifier@ _modi, bool sync = true)
         {
             if(owner_blob == @null) { Nu::Error("owner_blob was null on attempt to sync"); return false; }
-            if(!owner_blob.isMyPlayer()) { return true; }
+            if(!IsMine(@owner_blob)) { Nu::Warning("Client/Server that didn't own blob tried altering item"); return false; }
+
+            if(!sync)
+            {
+                all_modifiers.push_back(@_modi);
+                _modi.PassiveTick();
+                return true;
+            }
 
             CBitStream params;
 
@@ -651,11 +665,18 @@ namespace it
 
             return true;
         }
-        bool removeModifier(u16 _pos)
+        bool removeModifier(u16 _pos, bool sync = true)
         {
             if(owner_blob == @null) { Nu::Error("owner_blob was null on attempt to sync"); return false; }
-            if(!owner_blob.isMyPlayer()) { return true; }
+            if(!IsMine(@owner_blob)) { Nu::Warning("Client/Server that didn't own blob tried altering item"); return false; }
             if(_pos >= all_modifiers.size()) { Nu::Error("Reached out of bounds. Attempted to reach " + _pos + " while all_modifiers.size() was " + all_modifiers.size()); return false; }
+
+            if(!sync)
+            {
+                all_modifiers[_pos].AntiPassiveTick();
+                all_modifiers.removeAt(_pos);
+                return true;
+            }
 
             CBitStream params;
             params.write_u16(getID());//ID
@@ -666,7 +687,7 @@ namespace it
 
             return true;
         }
-        bool removeModifier(int _name_hash)
+        bool removeModifier(int _name_hash, bool sync = true)
         {
             u16 _pos;
             
@@ -676,16 +697,16 @@ namespace it
             {
                 if(all_modifiers[i].getNameHash() == _name_hash)
                 {
-                    return removeModifier(i);
+                    return removeModifier(i, sync);
                 }
             }
 
             return false;
         }
-        bool removeModifier(string _name)
+        bool removeModifier(string _name, bool sync = true)
         {
             int _name_hash = _name.getHash();
-            return removeModifier(_name_hash);
+            return removeModifier(_name_hash, sync);
         }
 
 
@@ -2142,9 +2163,9 @@ namespace it
 
     bool onCommand(CBlob@ this, u8 cmd, CBitStream@ params)
     {
-        print("item command");
         if(this.getCommandID("deserialize_equipment") == cmd)
         {
+            print("deserialize_equipment");
             array<it::IModiStore@>@ equipment;
             if(!this.get("equipment", @equipment)) { Nu::Error("equipment array was null"); return true; }
 
@@ -2188,7 +2209,7 @@ namespace it
         for(u16 i = 0; i < any_true.size(); i++)
         {
             if(any_true[i])
-            {
+            {print("command " + i);
                 one_is_true = true;
             }
         }

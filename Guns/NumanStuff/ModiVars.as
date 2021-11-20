@@ -152,7 +152,8 @@ class Modif32 : ModiBase
         }
         if(idx > BaseValue)//Index is something else
         {
-            Nu::Warning("Cannot simply set the multiplier values or add values");
+            //Nu::Warning("Cannot simply set the multiplier values or add values");
+            value[idx] = _value;
             return;
         }
         
