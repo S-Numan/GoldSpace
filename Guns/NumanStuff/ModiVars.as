@@ -99,7 +99,7 @@ class Modif32 : ModiBase
     Modif32(string _name)
     {
         setName(_name);
-        value = array<f32>(7);
+        value = array<f32>(ValueCount);
     }
     Modif32(string _name, f32 default_value)
     {
@@ -107,7 +107,7 @@ class Modif32 : ModiBase
 
 
         //Initialization of the variable
-        value = array<f32>(7);
+        value = array<f32>(ValueCount);
         
         value[BaseValue] = default_value;//base value.
         
@@ -174,22 +174,32 @@ class Modif32 : ModiBase
     }
 
 
-    void Serialize(CBitStream@ bs)
+    bool Serialize(CBitStream@ bs)
     {
-        for(u16 i = 1; i < value.size(); i++)//For everything that modifies value, skipping current value.
+        /*for(u16 i = 1; i < value.size(); i++)//For everything that modifies value, skipping current value.
         {
             bs.write_f32(value[i]);
-        }
+        }*/
+        bs.write_f32(value[BaseValue]);//Things that apply modifiers to this should be serialized sepeartely.
+
+        return true;
     }
-    void Deserialize(CBitStream@ bs)
+    bool Deserialize(CBitStream@ bs)
     {
-        for(u16 i = 1; i < value.size(); i++)//For everything that modifies value, skipping current value.
+        /*for(u16 i = 1; i < value.size(); i++)//For everything that modifies value, skipping current value.
         {
-            if(bs.saferead_f32(value[i]))
+            if(!bs.saferead_f32(value[i]))
             {
-                Nu::Error("Failure to read value");
+                Nu::Error("Failure to read value. Name = " + getName()); return false;
             }
+        }*/
+        u16 base_val;
+        if(!bs.saferead_f32(value[BaseValue]))
+        {
+            Nu::Error("Failure to read value. Name = " + getName()); return false;
         }
+
+        return true;
     }
 }
 
@@ -282,21 +292,25 @@ class Modibool : ModiBase
 
 
 
-    void Serialize(CBitStream@ bs)
+    bool Serialize(CBitStream@ bs)
     {
         for(u16 i = 0; i < value.size(); i++)
         {
             bs.write_bool(value[i]);
         }
+
+        return true;
     }
-    void Deserialize(CBitStream@ bs)
+    bool Deserialize(CBitStream@ bs)
     {
         for(u16 i = 0; i < value.size(); i++)
         {
-            if(bs.saferead_bool(value[i]))
+            if(!bs.saferead_bool(value[i]))
             {
-                Nu::Error("Failure to read value");
+                Nu::Error("Failure to read value. Name = " + getName()); return false;
             }
         }
+
+        return true;
     }
 }

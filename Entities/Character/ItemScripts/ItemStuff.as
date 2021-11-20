@@ -6,10 +6,7 @@
 
 void onInit(CBlob@ this)
 {
-    this.addCommandID("syncvf32");
-    this.addCommandID("syncvbool");
-    this.addCommandID("syncf32base");
-    this.addCommandID("syncboolbase");
+    it::onInitSync(@this);
 
     //Can't cast properly in kag angelscript, so I literally don't know how to do this in a better way.
     array<it::IModiStore@>@ equipment = @array<it::IModiStore@>(11, @null);
@@ -87,17 +84,6 @@ void onAttach(CBlob@ this, CBlob@ attached, AttachmentPoint@ attachedPoint)
     
 }
 
-/*void addEquipment(CBlob@ this, it::IModiStore@ to_add, u8 equip_slot)
-{
-    array<it::IModiStore@>@ equipment;
-    if(!this.get("equipment", @equipment)) { Nu::Error("equipment array was null"); return; }
-
-    @equipment[equip_slot] = @to_add;
-
-    //this.set("equipment", @equipment);
-}*/
-
-
 
 
 f32 getAimAngle(CBlob@ this, CBlob@ holder)
@@ -109,61 +95,24 @@ f32 getAimAngle(CBlob@ this, CBlob@ holder)
 
 void onCommand(CBlob@ this, u8 cmd, CBitStream@ params)
 {
-    array<bool> any_true = array<bool>(4);
-    any_true[0] = (this.getCommandID("syncvf32") == cmd);
-    any_true[1] = (this.getCommandID("syncvbool") == cmd);
-    any_true[2] = (this.getCommandID("syncf32base") == cmd);
-    any_true[3] = (this.getCommandID("syncboolbase") == cmd);
-
-    bool one_is_true = false;
-
-    for(u16 i = 0; i < any_true.size(); i++)
+    if(it::onCommandSync(@this, cmd, @params))
     {
-        if(any_true[i])
-        {
-            one_is_true = true;
-        }
+        
     }
+    else
+    {
 
-    if(!one_is_true) { return; }
-    
-    u16 id;
-    if(!params.saferead_u16(id)) { Nu::Error("bleh0"); return;}
-    
-    u8 array_pos; 
-    if(!params.saferead_u8(array_pos)) { Nu::Error("bleh1"); return;}
-
-    array<it::IModiStore@>@ equipment;
-    if(!this.get("equipment", @equipment)) { Nu::Error("equipment array was null"); return; }
-
-    if(equipment[id] == @null) { Nu::Error("bleh3"); return;}
-
-    if(any_true[0])
-	{
-        f32 value;
-        if(!params.saferead_f32(value)) { Nu::Error("bleh0"); return;}
-
-        equipment[id].getVF32()[array_pos] = value;
     }
-    else if(any_true[1])
-	{
-        bool value;
-        if(!params.saferead_bool(value)) { Nu::Error("bleh1"); return;}
+}
 
-        equipment[id].getVBool()[array_pos] = value;
-	}
-    else if(any_true[2])
-	{
-        f32 value;
-        if(!params.saferead_f32(value)) { Nu::Error("bleh2"); return;}
+class handlee
+{
+    handlee()
+    {
 
-        equipment[id].getF32Array()[array_pos][BaseValue] = value;
-	}
-    else if(any_true[3])
-	{
-        bool value;
-        if(!params.saferead_bool(value)) { Nu::Error("bleh3"); return;}
+    }
+    handlee(handlee@ hand)
+    {
 
-        equipment[id].getBoolArray()[array_pos][BaseValue] = value;
-	}
+    }
 }

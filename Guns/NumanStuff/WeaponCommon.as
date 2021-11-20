@@ -79,10 +79,12 @@ namespace it
 
     interface IModiStore
     {
-        void Init();
-        void Init(CBlob@ _blob);
+        void Init(u16 _initial_item);
+        void Init(u16 _initial_item, CBlob@ _blob);
         void AfterInit();
         bool Tick(CControls@ controls);
+
+        u16 getInitialItem();
 
         void setID(f32 value);
         u16 getID();
@@ -90,8 +92,8 @@ namespace it
         void setOwner(CBlob@ _blob);
         CBlob@ getOwner();
         
-        void Serialize(CBitStream@ bs);
-        void Deserialize(CBitStream@ bs);
+        bool Serialize(CBitStream@ bs, bool include_sfx = true);
+        bool Deserialize(CBitStream@ bs, bool &out include_sfx = void);
 
         array<Modif32@>@ getF32Array();
         array<Modibool@>@ getBoolArray();
@@ -131,6 +133,9 @@ namespace it
 
         void BaseValueChanged(int _name_hash);
 
+        void addShotListener(SHOT_CALLBACK@ value);
+        void addUseListener(USE_CALLBACK@ value);
+
         u32 getTicksSinceCreated();
     }
 
@@ -147,6 +152,10 @@ namespace it
 
     class basemodistore : IModiStore
     {
+        basemodistore()
+        {
+            Nu::Error("Wrong constructor");
+        }
         basemodistore()
         {
             init = false;
@@ -174,6 +183,11 @@ namespace it
         }
 
         u8 class_type;
+        u16 initial_item;//What method was this initially created from.
+        u16 getInitialItem()
+        {
+            return initial_item;
+        }
         u16 id;//Think of it like a netid for this class. Though this netid only applies for each blob. Thus, equipment on different blobs can have the same id no problemo.
         void setID(f32 value)
         {
@@ -184,7 +198,7 @@ namespace it
             return id;
         }
         bool init;
-        void Init()
+        void Init(u16 _initial_item)
         {
             if(!init)//If init has not yet been called. (most derived class)
             {
@@ -192,15 +206,17 @@ namespace it
                 class_type = ClassBaseModiStore;
             }
 
+            initial_item = _initial_item;
+
             setModiVars();
             setVars();
 
             AfterInit();
         }
-        void Init(CBlob@ _blob)
+        void Init(u16 _initial_item, CBlob@ _blob)
         {
             setOwner(@_blob);
-            Init();
+            Init(_initial_item);
         }
         void AfterInit()
         {
@@ -228,26 +244,22 @@ namespace it
             @owner_blob = @_blob;
         }
 
-        void Serialize(CBitStream@ bs)
+        bool Serialize(CBitStream@ bs, bool include_sfx = true)
         {
             u16 i;
 
-            if(owner_blob == @null) { Nu::Error("owner_blob was null on attempt to serialize"); return; }
+            if(bs == @null) { Nu::Error("CBitStream was null"); return false; }
+
+            if(owner_blob == @null) { Nu::Error("owner_blob was null on attempt to serialize"); return false; }
+
+            bs.write_u8(class_type);
+
+            bs.write_u16(getInitialItem());
 
             bs.write_u16(getID());
 
             bs.write_u16(owner_blob.getNetworkID());
-            
-            bs.write_u32(ticks_since_created);
 
-            for(i = 0; i < f32_array.size(); i++)
-            {
-                f32_array[i].Serialize(@bs);
-            }
-            for(i = 0; i < bool_array.size(); i++)
-            {
-                bool_array[i].Serialize(@bs);
-            }
             for(i = 0; i < vf32.size(); i++)
             {
                 bs.write_f32(vf32[i]);
@@ -256,39 +268,60 @@ namespace it
             {
                 bs.write_bool(vbool[i]);
             }
-        }
-
-        void Deserialize(CBitStream@ bs)
-        {
-            u16 i;
-
-            u16 _id;
-            if(!bs.saferead_u16(_id)){ Nu::Error("Failed to deserialize _id"); return;}
-            if(_id != id) { Nu::Error("id mismatch on Deserialize. Did you deserialize on the wrong class?"); return; }
-
-            u16 owner_netid;
-            if(!bs.saferead_u16(owner_netid)) { Nu::Error("Failed to deserialize owner_netid"); return; }
-            @owner_blob = @getBlobByNetworkID(owner_netid);
-            if(owner_blob == @null) { Nu::Error("serialized owner_blob was null"); }
-
-            if(!bs.saferead_u32(ticks_since_created)) { Nu::Error("Failed to deserialize ticks_since_created"); return; }
-            
             for(i = 0; i < f32_array.size(); i++)
             {
-                f32_array[i].Deserialize(@bs);
+                f32_array[i].Serialize(@bs);
             }
             for(i = 0; i < bool_array.size(); i++)
             {
-                bool_array[i].Deserialize(@bs);
+                bool_array[i].Serialize(@bs);
             }
+
+            bs.write_u32(ticks_since_created);
+
+            bs.write_bool(include_sfx);//If this is true, it will also serialize sfx. Otherwise it will skip it.
+        
+            return true;
+        }
+
+        bool Deserialize(CBitStream@ bs, bool &out include_sfx = void)
+        {
+            u16 i;
+
+            if(bs == @null) { Nu::Error("CBitStream was null"); return false; }
+
+            u16 _id;
+            if(!bs.saferead_u16(_id)){ Nu::Error("Failed to deserialize _id"); return false; }
+            //if(_id != id) { Nu::Error("id mismatch on Deserialize. Did you deserialize on the wrong class? _id was " + _id + " id was " + id); return; }
+            setID(_id);
+
+            u16 owner_netid;
+            if(!bs.saferead_u16(owner_netid)) { Nu::Error("Failed to deserialize owner_netid"); return false; }
+            @owner_blob = @getBlobByNetworkID(owner_netid);
+            if(owner_blob == @null) { Nu::Error("serialized owner_blob was null. attempted netid was " + owner_netid + " id was " + _id); }
+            
             for(i = 0; i < vf32.size(); i++)
             {
-                if(!bs.saferead_f32(vf32[i])) { Nu::Error("Failed to deserialize vf32 on " + i); continue; }
+                if(!bs.saferead_f32(vf32[i])) { Nu::Error("Failed to deserialize vf32 on " + i); return false; }
             }
             for(i = 0; i < vbool.size(); i++)
             {
-                if(!bs.saferead_bool(vbool[i])) { Nu::Error("Failed to deserialize vbool on " + i); continue; }
+                if(!bs.saferead_bool(vbool[i])) { Nu::Error("Failed to deserialize vbool on " + i); return false; }
             }
+            for(i = 0; i < f32_array.size(); i++)
+            {
+                if(!f32_array[i].Deserialize(@bs)) { return false; }
+            }
+            for(i = 0; i < bool_array.size(); i++)
+            {
+                if(!bool_array[i].Deserialize(@bs)) { return false; }
+            }
+            
+            if(!bs.saferead_u32(ticks_since_created)) { Nu::Error("Failed to deserialize ticks_since_created"); return false; }
+
+            if(!bs.saferead_bool(include_sfx)){ Nu::Error("Failed to deserialize include_sfx"); return false; }
+
+            return true;
         }
 
         void ResizeThings(u16 f32_size, u16 bool_size, u16 vf32_size, u16 vbool_size)
@@ -362,7 +395,7 @@ namespace it
             if(!vf32sync[pos]) { return; }
             if(owner_blob == @null) { Nu::Error("owner_blob was null on attempt to sync " + pos); return; }
                 
-            CBitStream@ params;
+            CBitStream params;
             params.write_u16(getID());
 
             params.write_u8(pos);
@@ -402,7 +435,7 @@ namespace it
             if(!vboolsync[pos]) { return; }
             if(owner_blob == @null) { Nu::Error("owner_blob was null on attempt to sync " + pos); return; }
 
-            CBitStream@ params;
+            CBitStream params;
             params.write_u16(getID());
 
             params.write_u8(pos);
@@ -459,7 +492,7 @@ namespace it
             //Sync
             if(owner_blob == @null) { Nu::Error("owner_blob was null on attempt to sync in BaseValueChanged " + _name_hash); return; }
                 
-            CBitStream@ params;
+            CBitStream params;
             params.write_u16(getID());
 
             u16 point;
@@ -475,7 +508,7 @@ namespace it
             else
             {
                 point = getModiboolPoint(_name_hash);
-                if(point != Nu::u16_max()) { Nu::Error("Could not find ModiVar"); return; }
+                if(point == Nu::u16_max()) { Nu::Error("Could not find ModiVar. point = " + point); return; }
                 //Sync Modibool
                 params.write_u8(point);
                 params.write_bool(bool_array[point][BaseValue]);
@@ -520,6 +553,8 @@ namespace it
                     print("BeforeAdd = " + f32_array[i][BeforeAdd], debug_color);
                     print("MultValue = " + f32_array[i][MultValue], debug_color);
                     print("AfterAdd = " + f32_array[i][AfterAdd], debug_color);
+                    print("MinValue = " + f32_array[i][MinValue], debug_color);
+                    print("MaxValue = " + f32_array[i][MaxValue], debug_color);
                 }
                 print("");
             }
@@ -644,6 +679,13 @@ namespace it
             }
         }
 
+        void addShotListener(SHOT_CALLBACK@ value)
+        {
+        }
+        void addUseListener(USE_CALLBACK@ value)
+        {
+        }
+
         u32 ticks_since_created;
         u32 getTicksSinceCreated()
         {
@@ -673,8 +715,8 @@ namespace it
     //funcdef void USE_CALLBACK(activatable@);
     //While I would prefer to send the handle to the class itself, kag doesn't let me do casting to upper/lower versions of the class.
 
-    //In order: Modif32@ array handle, Modibool@ array handle, DefaultModifier@ array handle.
-    funcdef void USE_CALLBACK(array<Modif32@>@, array<Modibool@>@, array<DefaultModifier@>@);
+    //In order: self
+    funcdef void USE_CALLBACK(IModiStore@);
 
     //terminology
         //USE                   When the user presses the button to use it once.
@@ -690,7 +732,7 @@ namespace it
             empty_total_sfx = "";
         }
 
-        void Init() override
+        void Init(u16 _initial_item) override
         {
             if(!init)//If init has not yet been called. (most derived class)
             {
@@ -704,7 +746,7 @@ namespace it
                 );
             }
 
-            basemodistore::Init();
+            basemodistore::Init(_initial_item);
         }
 
         void AfterInit() override
@@ -759,14 +801,6 @@ namespace it
             print("stop_discharge = " + getStopDischarge(), debug_color);
             print("current_charge = " + getCurrentCharge(), debug_color);
         }
-
-        /*CBitStream@ SyncVars(CRules@ rules)
-        {
-            CBitStream@ params;
-            params.write_f32(getAmmoLeft());
-            params.write_bool(getStopDischarge());
-            rules.SendCommand(rules.getCommandID("SyncActive"), CBitStream&in params, CPlayer@ player)
-        }*/
 
         
 
@@ -991,7 +1025,7 @@ namespace it
             
             if(use_func != @null)//If the function to call exists
             {
-                use_func(@f32_array, @bool_array, @all_modifiers);//Call it
+                use_func(@this);//Call it
                 //TODO Apply knockback per use somehow
             }
 
@@ -1017,6 +1051,31 @@ namespace it
             {
                 setChargeAllowance(false);//No more charge allowance
             }
+        }
+
+
+        bool Serialize(CBitStream@ bs, bool include_sfx = true) override
+        {
+            if(!basemodistore::Serialize(@bs, include_sfx)) { return false; }
+
+            if(include_sfx)
+            {
+                bs.write_string(use_sfx);
+                bs.write_string(empty_total_sfx);
+            }
+            return true;
+        }
+
+        bool Deserialize(CBitStream@ bs, bool &out include_sfx = void) override
+        {
+            if(!basemodistore::Deserialize(@bs, include_sfx)) { return false; }
+
+            if(include_sfx)
+            {
+                if(!bs.saferead_string(use_sfx)) { Nu::Error("Failed to deserialize use_sfx"); return false; }
+                if(!bs.saferead_string(empty_total_sfx)) { Nu::Error("Failed to deserialize empty_total_sfx"); return false; }
+            }
+            return true;
         }
 
         Modif32@ using_mode = Modif32("using_mode", 0);//0 means semi-auto. 1 means you can hold the button to keep automatically shooting when able (full auto). 2 means on_release, this only works when you release the button.
@@ -1119,19 +1178,19 @@ namespace it
         ItemBoolCount = ActivatableBoolCount
     }
 
-    //In order: Angle, Modif32@ array handle, Modibool@ array handle, DefaultModifier@ array handle.
-    funcdef void SHOT_CALLBACK(f32, array<Modif32@>@, array<Modibool@>@, array<DefaultModifier@>@);
+    //In order: This, Angle
+    funcdef void SHOT_CALLBACK(IModiStore@, f32);
 
     class item : activatable
     {
-        item()
+        item(u16 _initial_item)
         {
             shot_func = @null;
 
             shot_sfx = "";
             empty_total_ongoing_sfx = "";
         }
-        void Init() override
+        void Init(u16 _initial_item) override
         {
             if(!init)//If init has not yet been called. (most derived class)
             {
@@ -1145,7 +1204,7 @@ namespace it
                 );
             }
             
-            activatable::Init();
+            activatable::Init(_initial_item);
         }
         void AfterInit() override
         {
@@ -1300,7 +1359,7 @@ namespace it
 
             if(call_func && shot_func != @null)//If the function to call exists
             {
-                shot_func(0.0f, @f32_array, @bool_array, @all_modifiers);//Call it
+                shot_func(@this, 0.0f);//Call it
                 //TODO Apply knockback per shot somehow
             }
 
@@ -1415,6 +1474,29 @@ namespace it
         //Shots
 
 
+        bool Serialize(CBitStream@ bs, bool include_sfx = true) override
+        {
+            if(!activatable::Serialize(@bs, include_sfx)) { return false; }
+
+            if(include_sfx)
+            {
+                bs.write_string(shot_sfx);
+                bs.write_string(empty_total_ongoing_sfx);
+            }
+            return true;
+        }
+
+        bool Deserialize(CBitStream@ bs, bool &out include_sfx = void) override
+        {
+            if(!activatable::Deserialize(@bs, include_sfx)) { return false; }
+
+            if(include_sfx)
+            {
+                if(!bs.saferead_string(shot_sfx)) { Nu::Error("Failed to deserialize shot_sfx"); return false; }
+                if(!bs.saferead_string(empty_total_ongoing_sfx)) { Nu::Error("Failed to deserialize empty_total_ongoing_sfx"); return false; }
+            }
+            return true;
+        }
 
 
         //SFX
@@ -1438,11 +1520,11 @@ namespace it
 
     class itemaim : item
     {
-        itemaim()
+        itemaim(u16 _initial_item)
         {
             
         }
-        void Init() override
+        void Init(u16 _initial_item) override
         {
             if(!init)//If init has not yet been called. (most derived class)
             {
@@ -1455,7 +1537,7 @@ namespace it
                 ItemAimBoolCount//vbool
                 );
             }
-            item::Init();
+            item::Init(_initial_item);
         }
         void AfterInit() override
         {
@@ -1536,7 +1618,7 @@ namespace it
                 print("current_spread = " + getVF32(CurrentSpread));
                 print("random_aim = " + random_aim);
 
-                shot_func(random_aim + random_deviation, @f32_array, @bool_array, @all_modifiers);//Call it
+                shot_func(@this, random_aim + random_deviation);//Call it
                 //TODO Apply knockback per shot somehow
             }
 
@@ -1914,4 +1996,81 @@ namespace it
     //See archer bow. But try putting the bow a bit further forward instead.
     //Scoot the point of rotation around based on the aim position if needed.
 */
+
+
+
+
+
+
+
+    void onInitSync(CBlob@ this)
+    {
+        this.addCommandID("syncvf32");
+        this.addCommandID("syncvbool");
+        this.addCommandID("syncf32base");
+        this.addCommandID("syncboolbase");
+    }
+
+    bool onCommandSync(CBlob@ this, u8 cmd, CBitStream@ params)
+    {
+        array<bool> any_true = array<bool>(4);
+        any_true[0] = (this.getCommandID("syncvf32") == cmd);
+        any_true[1] = (this.getCommandID("syncvbool") == cmd);
+        any_true[2] = (this.getCommandID("syncf32base") == cmd);
+        any_true[3] = (this.getCommandID("syncboolbase") == cmd);
+
+        bool one_is_true = false;
+
+        for(u16 i = 0; i < any_true.size(); i++)
+        {
+            if(any_true[i])
+            {
+                one_is_true = true;
+            }
+        }
+
+        if(!one_is_true) { return false; }
+        
+        u16 id;
+        if(!params.saferead_u16(id)) { Nu::Error("bleh0"); return true;}
+        
+        u8 array_pos; 
+        if(!params.saferead_u8(array_pos)) { Nu::Error("bleh1"); return true;}
+
+        array<it::IModiStore@>@ equipment;
+        if(!this.get("equipment", @equipment)) { Nu::Error("equipment array was null"); return true; }
+
+        if(equipment[id] == @null) { Nu::Error("bleh3"); return true;}
+
+        if(any_true[0])
+        {
+            f32 value;
+            if(!params.saferead_f32(value)) { Nu::Error("bleh0"); return true;}
+
+            equipment[id].getVF32()[array_pos] = value;
+        }
+        else if(any_true[1])
+        {
+            bool value;
+            if(!params.saferead_bool(value)) { Nu::Error("bleh1"); return true;}
+
+            equipment[id].getVBool()[array_pos] = value;
+        }
+        else if(any_true[2])
+        {
+            f32 value;
+            if(!params.saferead_f32(value)) { Nu::Error("bleh2"); return true;}
+
+            equipment[id].getF32Array()[array_pos][BaseValue] = value;
+        }
+        else if(any_true[3])
+        {
+            bool value;
+            if(!params.saferead_bool(value)) { Nu::Error("bleh3"); return true;}
+
+            equipment[id].getBoolArray()[array_pos][BaseValue] = value;
+        }
+
+        return true;
+    }
 }
