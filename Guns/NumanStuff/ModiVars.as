@@ -194,10 +194,11 @@ class Modif32 : ModiBase
             }
         }*/
         u16 base_val;
-        if(!bs.saferead_f32(value[BaseValue]))
+        if(!bs.saferead_f32(base_val))
         {
             Nu::Error("Failure to read value. Name = " + getName()); return false;
         }
+        value[BaseValue] = base_val;
 
         return true;
     }
