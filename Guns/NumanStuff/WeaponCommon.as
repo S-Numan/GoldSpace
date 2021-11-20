@@ -81,7 +81,7 @@ namespace it
     {
         Sharp = 1,
         Blunt,
-        Heat,
+        HeatDamage,
 
         DamageTypeCount
     }
@@ -1599,7 +1599,7 @@ namespace it
     }
     enum ItemAimBools
     {
-        ItemAimBoolCount = ItemBoolCount,
+        ItemAimBoolCount = ItemBoolCount
     }
 
     class itemaim : item
@@ -1653,6 +1653,7 @@ namespace it
         
         void DebugVars() override
         {
+            print("current_spread = " + getVF32(CurrentSpread), debug_color);
             item::DebugVars();
         }
 
@@ -1738,116 +1739,104 @@ namespace it
 
 
 
-    /*
+    enum WeaponFloats
+    {
+        QueuedProjectiles = ItemAimFloatCount,
+        ProjectileAfterdelayLeft,
+        Heat,
 
-
+        WeaponFloatCount
+    }
+    enum WeaponBools
+    {
+        Overheating = ItemAimBoolCount,
+        WeaponBoolCount
+    }
 
     class weapon : itemaim
     {
-
+        
         //Jam chance
         //Peanut butter cha- . No
         //Jam size
         //Jam unjam per reload press
         //See SYNTHETIK for how jamming works
 
-
-        weapon()
+        weapon(u16 _initial_item)
         {
-            Init();
-
-            
-            bool_array.reserve(10);
-            f32_array.reserve(30);
-            setModiVars();
-
-
-            AfterInit();
-
-            reload_sfx = "Reload.ogg";
             projectile_sfx = "";
-            equip_weapon_sfx = "";
+            reload_sfx = "";
             empty_clip_sfx = "";
             empty_clip_use_sfx = "";
             equip_weapon_sfx = "";
-            flesh_hit_sfx = "ArrowHitFlesh.ogg";
-            object_hit_sfx = "BulletImpact.ogg";
+        }
+        void Init(u16 _initial_item) override
+        {
+            if(!init)//If init has not yet been called. (most derived class)
+            {
+                init = true;//Init has been called.
+                class_type = ClassWeapon;
+                
+                ResizeThings(6 + 6 + 5,//f32
+                2 + 3 + 0,//bool
+                WeaponFloatCount,//vf32
+                WeaponBoolCount//vbool
+                );
+            }
+            itemaim::Init(_initial_item);
+        }
+        void AfterInit() override
+        {
+            itemaim::AfterInit();
         }
 
-        bool Tick() override
+        void setModiVars() override
         {
-            if(!activatable::Tick()) { return false; }
+            itemaim::setModiVars();
 
+            bool_array.push_back(@projectile_host_inertia);
+            
+            f32_array.push_back(@projectiles_per_shot);
+            f32_array.push_back(@projectile_afterdelay);
+            f32_array.push_back(@random_projectile_spread);
+            f32_array.push_back(@same_tick_forced_spread);
+            f32_array.push_back(@max_heat);
+            f32_array.push_back(@overheating_mult);
+            f32_array.push_back(@heat_loss_per_tick);
+            f32_array.push_back(@heat_gain_per_shot);
+            f32_array.push_back(@damage_on_overheat);
+
+        }
+        void setVars() override
+        {
+            itemaim::setVars();
+            
+            setVF32(QueuedProjectiles, 0, false);
+            setVF32(ProjectileAfterdelayLeft, 0, false);
+            setVF32(Heat, 0, false);
+            setVBool(Overheating, false, false);
+        }
+        
+        void BaseValueChanged(int _name_hash) override//Called if a base value is changed.
+        {
+            itemaim::BaseValueChanged(_name_hash);
+        }
+        
+        void DebugVars() override
+        {
+            itemaim::DebugVars();
+        }
+
+
+        bool Tick(CControls@ controls) override
+        {
+            if(!itemaim::Tick(@controls)){ return false; }
 
             return true;
         }
 
 
-
-
-
-
-
-
-        void BaseValueChanged() override
-        {
-            activatable::BaseValueChanged();
-            print("weapon base value changed");
-
-        }
-
-
-
-
-        private float[] max_ammo = array<float>(2, 0.0f);
-        float getMaxAmmo()//Gets the maximum amount of ammo that this weapon can hold. (not including ammo in clip)
-        {
-            return max_ammo[1];
-        }
-        void setMaxAmmo(float value)
-        {
-            max_ammo[1] = value;
-            BaseValueChanged();
-        }
-
-        float getTotalAmmo()//Gets the current amount of ammo that this weapon is holding. (not including ammo in clip)
-        {
-            return max_ammo[0];
-        }
-        void setTotalAmmo(float value)
-        {
-            max_ammo[0] = value;
-        }
-
-        float getClipSize(bool get_base = false)
-        {
-            return getMaxUseCount(get_base);
-        }
-        void setClipSize(float value)//If the clip size is 0, this gun instead draws from max_ammo. As this gun doesn't have a clip.
-        {
-            setMaxUseCount(value);
-        }
-
-        float getAmmoInClip()
-        {
-            return use_count_left;
-        }
-        void setAmmoInClip(float value)
-        {
-            use_count_left = value;
-        }
-
-        float getFireRate(bool get_base = false)
-        {
-            return use_afterdelay[get_base ? 1 : 0];
-        }
-        void setFireRate(float value)
-        {
-            use_afterdelay[1] = value;
-            BaseValueChanged();
-        }
-
-
+        /*
         private float[] unequip_time = array<float>(2, 0.0f);//Ticks taken to unequip a weapon
         float getUnequipTime(bool get_base = false)
         {
@@ -1868,12 +1857,12 @@ namespace it
         {
             equip_time[1] = value;
             BaseValueChanged();
-        }
+        }*/
 
 
         //RELOADING
         //
-
+        /*
         private float[] ammo_to_clip_per_reload = array<float>(2, 1.0f);//Amount of ammo added to the clip per reload. 0.0f means max ammo that can be added is added. (I.E default)
         //Weapon will continue to reload until clip is full, unless the weapon is used.
 
@@ -1917,25 +1906,27 @@ namespace it
             {
                 auto_reload = value;
             }
-
+        */
         //
         //RELOADING
 
         //HEAT
         //
+        
             bool overheating;//Is this weapon currently overheated? This weapon will be unable to output any shots while this value is true. This value will only stop being true once "heat" reaches 0.
 
-            float heat;//Current heat
+            f32 heat;//Current heat
 
-            float max_heat;//Upon the value "heat" going above this value the bool "overheating" turns true.
+            Modif32@ max_heat = Modif32("max_heat", 0.0f);//Upon the value "heat" going above this value the bool "overheating" turns true.
 
-            float overheating_multiplier;//The multiplier applied to "heat_loss_per_tick" when the bool "overheating" is true.
+            Modif32@ overheating_mult = Modif32("overheating_mult", 1.0f);//The multiplier applied to "heat_loss_per_tick" when the bool "overheating" is true.
 
-            float heat_loss_per_tick;
+            Modif32@ heat_loss_per_tick = Modif32("heat_loss_per_tick", 0.0f);
 
-            float heat_gain_per_shot;
+            Modif32@ heat_gain_per_shot = Modif32("heat_gain_per_shot", 0.0f);
 
-            float damage_on_overheat;//How much the user is damaged when the gun overheats.
+            Modif32@ damage_on_overheat = Modif32("damage_on_overheat", 0.0f);//How much the user is damaged when the gun overheats.
+        
         //
         //Heat
 
@@ -1943,26 +1934,27 @@ namespace it
         //
             //EFFECTS
             //
-                bool projectile_host_inertia;//If this is true, the velocity of the host is applied to the projectile on its creation.
+                Modibool@ projectile_host_inertia = Modibool("projectile_host_inertia", true);//If this is true, the velocity of the host is applied to the projectile on its creation.
 
-                array<GunProjectile@> projectile;//By default the gun shoot's the 0'th projectile in this array.
+                //array<GunProjectile@> projectile;//By default the gun shoot's the 0'th projectile in this array.
             //
             //EFFECTS
 
             //AMOUNT
             //
-                float queued_projectiles;//Value that holds projectiles waiting to escape from the gun. Think shotgun like weapons.
-                float projectiles_per_shot;//Amount of projectiles per shot.
-                float projectile_afterdelay;//Only relevant if the stat above is more than 1. Delay in ticks between each projectile
+                f32 queued_projectiles;//Value that holds projectiles waiting to escape from the gun. Think shotgun like weapons.
+                Modif32@ projectiles_per_shot = Modif32("projectiles_per_shot", 1.0f);//Amount of projectiles per shot.
+                Modif32@ projectile_afterdelay = Modif32("projectile_afterdelay", 0.0f);//Delay in ticks between each projectile
+                f32 projectile_afterdelay_left;
             //
             //AMOUNT
 
             //AIMING
             //
-                float random_projectile_spread;//After random_shot_spread is applied, this applies to every projectile seperately. Otherwise known as deviation.
+                Modif32@ random_projectile_spread = Modif32("random_projectile_spread", 0.0f);//After random_shot_spread is applied, this applies to every projectile seperately. Otherwise known as deviation.
                 //If random_shot_spread changes the aimed direction for every projectile, this changes the aim direction for each projectile individually.
 
-                float same_tick_forced_spread;//When two projectiles are shot in the same tick, this forces each projectile to by default aim x amount apart from each other.
+                Modif32@ same_tick_forced_spread = Modif32("same_tick_forced_spread", 0.0f);//When two projectiles are shot in the same tick, this forces each projectile to by default aim x amount apart from each other.
                 //With three projectiles and a distance of 3.0f, the middle projectile will shot like normal, but the other two projectiles will be equally apart like a shotgun but without randomness.
                 //random_projectile_spread is applied after this.
             //
@@ -1982,13 +1974,9 @@ namespace it
 
             string empty_clip_sfx;//When the gun has 0 ammo in the clip.
 
-            string empty_clip_use_sfx;//When the gun is attempted to use when there is no ammo in the clip, and auto_reload is false.
+            string empty_clip_use_sfx;//When the gun is attempted to use when there is no ammo in the clip, and auto_reload is false. empty_total and this never play at the same time.
 
             string equip_weapon_sfx;
-
-            string flesh_hit_sfx;
-
-            string object_hit_sfx;
         //
         //SFX
 
@@ -2072,6 +2060,15 @@ namespace it
 
         //
         //AOE
+
+        //SFX
+        //
+            string flesh_hit_sfx;
+
+            string object_hit_sfx;
+        //
+        //SFX
+
     }
 
 
@@ -2079,7 +2076,6 @@ namespace it
     //Rotate from the back part of the gun from there, keeping the back of the gun in place. Possibly rotate from even farther behind the back of the gun.
     //See archer bow. But try putting the bow a bit further forward instead.
     //Scoot the point of rotation around based on the aim position if needed.
-*/
 
 
 

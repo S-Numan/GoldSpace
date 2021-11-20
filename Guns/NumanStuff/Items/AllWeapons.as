@@ -18,6 +18,10 @@
     {
         return @it::itemaim();
     }
+    else if(class_type == it::ClassWeapon)
+    {
+        return @it::weapon();
+    }
 
     return @null;
 }*/
@@ -78,11 +82,11 @@ it::IModiStore@ CreateItem(u16 created_item, CBlob@ owner, bool include_sfx = tr
     return @null;
 }
 
-it::itemaim@ TestWeapon(u16 created_weapon, CBlob@ owner, bool include_sfx, bool include_functions, bool include_modivars)
+it::weapon@ TestWeapon(u16 created_weapon, CBlob@ owner, bool include_sfx, bool include_functions, bool include_modivars)
 {
     print("created TestItem");   
 
-    it::itemaim@ example_thing = @it::itemaim();
+    it::weapon@ example_thing = @it::weapon();
     example_thing.Init(created_weapon);
 
     example_thing.setEquipSlot(0);//0 is primary, 1 is secondary, 2 is whatever.
@@ -92,9 +96,9 @@ it::itemaim@ TestWeapon(u16 created_weapon, CBlob@ owner, bool include_sfx, bool
 
     if(include_functions)
     {
-        //example_thing.addUseListener(@onDebugUse);
+        example_thing.addUseListener(@onDebugUse);
 
-        //example_thing.addShotListener(@onDebugShot);
+        example_thing.addShotListener(@onDebugShot);
     }
 
     if(include_sfx)
@@ -165,9 +169,9 @@ it::itemaim@ TestWeapon(u16 created_weapon, CBlob@ owner, bool include_sfx, bool
     return @example_thing;
 }
 
-it::itemaim@ StandardPistol(u16 created_weapon, CBlob@ owner, bool include_sfx, bool include_functions, bool include_modivars)
+it::weapon@ StandardPistol(u16 created_weapon, CBlob@ owner, bool include_sfx, bool include_functions, bool include_modivars)
 {
-    it::itemaim@ weapon = @it::itemaim();
+    it::weapon@ weapon = @it::weapon();
     weapon.Init(created_weapon);
 
     weapon.setEquipSlot(0);
