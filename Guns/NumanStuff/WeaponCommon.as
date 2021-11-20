@@ -123,6 +123,7 @@ namespace it
         bool removeModifier(int _name_hash);
         bool removeModifier(string _name);
         void DebugModiVars(bool full_data = false);
+        void TickActiveModifiers();
 
         bool hasTag(string tag_string);
         bool hasTag(int tag_hash);
@@ -390,6 +391,8 @@ namespace it
 
             ticks_since_created++;
 
+            TickActiveModifiers();
+
             return true;
         }
 
@@ -545,6 +548,10 @@ namespace it
             if(owner_blob == @null) { Nu::Error("owner_blob was null on attempt to sync in BaseValueChanged " + _name_hash); return; }
             if(!owner_blob.isMyPlayer()) { return; }
 
+            //Refresh modifiers
+            
+            if(!getSyncModivars()) { return; }
+
             CBitStream params;
             params.write_u16(getID());
 
@@ -570,17 +577,7 @@ namespace it
             }
         }
 
-        /*void RefreshPassiveModifiers()
-        {
-            for(u16 i = 0; i < all_modifiers.size(); i++)
-            {
-                if(all_modifiers[i].getModifierType() != Active)
-                {
-                    all_modifiers[i].PassiveTick();
-                }
-            }
-        }
-        void RefreshActiveModifiers()
+        void TickActiveModifiers()
         {
             for(u16 i = 0; i < all_modifiers.size(); i++)
             {
@@ -589,7 +586,7 @@ namespace it
                     all_modifiers[i].ActiveTick();
                 }
             }
-        }*/
+        }
 
         void DebugModiVars(bool full_data = false)
         {
