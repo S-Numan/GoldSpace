@@ -33,7 +33,7 @@ void onDebugUse(it::IModiStore@ item)
     print("f32_array.size() == " + item.getF32Array().size());
     print("bool_array.size() == " + item.getBoolArray().size());
     print("all_modifiers.size() == " + item.getAllModifiers().size());
-    item.DebugModiVars(true);
+    //item.DebugModiVars(true);
     item.DebugVars();
 }
 
@@ -43,7 +43,7 @@ void onDebugShot(it::IModiStore@ item, f32 shot_angle)
     print("f32_array.size() == " + item.getF32Array().size());
     print("bool_array.size() == " + item.getBoolArray().size());
     print("all_modifiers.size() == " + item.getAllModifiers().size());
-    item.DebugModiVars(true);
+    //item.DebugModiVars(true);
     item.DebugVars();
 }
 
@@ -107,19 +107,21 @@ it::weapon@ TestWeapon(u16 created_weapon, CBlob@ owner, bool include_sfx, bool 
 
         example_thing.shot_sfx = "AssaultFire.ogg";
 
-        example_thing.empty_total_sfx = "BulletImpact.ogg";
+        example_thing.empty_mag_sfx = "BulletImpact.ogg";
 
-        example_thing.empty_total_ongoing_sfx = "ShellDrop.ogg";
+        example_thing.empty_mag_ongoing_sfx = "ShellDrop.ogg";
+
+        example_thing.reload_sfx = "Reload.ogg";
     }
 
     if(include_modivars)
     {
         example_thing.setSyncModivars(false);
         
-        example_thing.max_ammo[BaseValue] = 17;
-        example_thing.setAmmoLeft(example_thing.max_ammo[CurrentValue]);
+        example_thing.mag_size[BaseValue] = 17;
+        example_thing.setVF32(it::MagLeft, example_thing.mag_size[CurrentValue], false);//False means don't sync
 
-        example_thing.shots_per_use[BaseValue] = 5;//3 Shots per use
+        example_thing.shots_per_use[BaseValue] = 5;//5 Shots per use
 
         example_thing.shot_afterdelay[BaseValue] = 15;//Half a second per shot
 
@@ -130,7 +132,7 @@ it::weapon@ TestWeapon(u16 created_weapon, CBlob@ owner, bool include_sfx, bool 
 
         example_thing.use_afterdelay[BaseValue] = 4;
 
-        example_thing.no_ammo_no_shots[BaseValue] = true;
+        example_thing.no_ammo_no_shots[BaseValue] = false;
 
         example_thing.use_with_shot_afterdelay[BaseValue] = false;
 
@@ -154,6 +156,23 @@ it::weapon@ TestWeapon(u16 created_weapon, CBlob@ owner, bool include_sfx, bool 
         example_thing.spread_gain_per_shot[BaseValue] = 30.0f;
 
         example_thing.spread_loss_per_tick[BaseValue] = 1.0f;
+
+
+        example_thing.projectiles_per_shot[BaseValue] = 3;
+
+        example_thing.damage_on_overheat[BaseValue] = 0.1f;
+
+
+        example_thing.max_ammo[BaseValue] = 7;
+        example_thing.setVF32(it::MaxAmmoLeft, example_thing.max_ammo[CurrentValue], false);
+
+
+        example_thing.reload_time[BaseValue] = 15;
+
+        //example_thing.auto_reload[BaseValue] = true;
+
+
+
 
         example_thing.setSyncModivars(true);
     }
@@ -187,21 +206,19 @@ it::weapon@ StandardPistol(u16 created_weapon, CBlob@ owner, bool include_sfx, b
 
     if(include_sfx)
     {
-        weapon.use_sfx = "arrow_hit_ground.ogg";
-
         weapon.shot_sfx = "AssaultFire.ogg";
 
-        weapon.empty_total_sfx = "BulletImpact.ogg";
+        weapon.empty_mag_sfx = "BulletImpact.ogg";
 
-        weapon.empty_total_ongoing_sfx = "ShellDrop.ogg";
+        weapon.empty_mag_ongoing_sfx = "ShellDrop.ogg";
     }
 
     if(include_modivars)
     {
         weapon.setSyncModivars(false);
 
-        weapon.max_ammo[BaseValue] = 17;
-        weapon.setAmmoLeft(weapon.max_ammo[CurrentValue]);
+        weapon.mag_size[BaseValue] = 17;
+        weapon.setVF32(it::MagLeft, weapon.mag_size[CurrentValue], false);//False means don't sync
     
         weapon.setSyncModivars(true);
     }

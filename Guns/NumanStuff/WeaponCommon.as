@@ -2,6 +2,7 @@
 #include "ModiVars.as";
 #include "WeaponModifiers.as";
 #include "AllWeapons.as";
+#include "Hitters.as";
 
 //Change clip to mag. It's shorter and more accurate based on the logic.
 
@@ -406,7 +407,7 @@ namespace it
 
         SColor debug_color;
 
-        array<Modif32@>@ f32_array;//Stores Modif32 .. variables? Don't often change. Things like, "max_ammo_count"
+        array<Modif32@>@ f32_array;//Stores Modif32 .. variables? Don't often change. Things like, "max_ammo"
         array<Modif32@>@ getF32Array()
         {
             return @f32_array;
@@ -437,6 +438,7 @@ namespace it
         void setVF32(u8 pos, f32 value, bool sync_value = true)
         {
             if(pos >= vf32.size()) { Nu::Error("Attempted to go past max array size"); return; }
+            if(vf32[pos] == value) { return; }//If the values are the same, no need to change anything.
             
             vf32[pos] = value;
             if(sync_value)//If this value is supposed to sync.
@@ -478,7 +480,8 @@ namespace it
         void setVBool(u8 pos, bool value, bool sync_value = true)
         {
             if(pos >= vbool.size()) { Nu::Error("Attempted to go past max array size"); return; }
-            
+            if(vbool[pos] == value) { return; }//If the values are the same, no need to change anything.
+
             vbool[pos] = value;
             if(sync_value)//If this value is supposed to sync.
             {
@@ -780,7 +783,7 @@ namespace it
     enum ActivatableFloats
     {
         UseAfterdelayLeft = 0,
-        AmmoLeft,
+        MagLeft,
         CurrentCharge,
 
         ActivatableFloatCount
@@ -813,7 +816,7 @@ namespace it
             use_func = @null;
 
             use_sfx = "";
-            empty_total_sfx = "";
+            empty_mag_sfx = "";
         }
 
         void Init(u16 _initial_item) override
@@ -843,7 +846,7 @@ namespace it
             //USE how
             f32_array.push_back(@use_afterdelay);
         
-            f32_array.push_back(@max_ammo);
+            f32_array.push_back(@mag_size);
 
             f32_array.push_back(@using_mode);
 
@@ -865,7 +868,7 @@ namespace it
         void setVars() override
         {
             setVF32(UseAfterdelayLeft, 0, false);
-            setVF32(AmmoLeft, 0, false);
+            setVF32(MagLeft, 0, false);
             setVF32(CurrentCharge, 0, false);
             
             setVBool(ChargeAllowance, false, false);
@@ -881,7 +884,7 @@ namespace it
         {
             basemodistore::DebugVars();
             print("use_afterdelay_left = " + getUseAfterdelayLeft(), debug_color);
-            print("ammo_left = " + getAmmoLeft(), debug_color);
+            print("mag_left = " + getVF32(MagLeft), debug_color);
             print("stop_discharge = " + getStopDischarge(), debug_color);
             print("current_charge = " + getCurrentCharge(), debug_color);
         }
@@ -976,7 +979,7 @@ namespace it
             {
                 UseOnceReduction(false);//act like this was used, but don't use ammo or "use".
 
-                if(empty_total_sfx != "") { Sound::Play(empty_total_sfx); }//Play attempted use sound//TODO, make sfx better. Have position, volume, pitch as variables. Every client should hear the shots.
+                PlaySoundAll(owner_blob, empty_mag_sfx, 1, 1);//Play attempted use sound
             }
             else if(can_use_reason == 8)
             {
@@ -1006,6 +1009,7 @@ namespace it
         //10 == current charge is not adequate, and button is being pressed.
         //11 == presing button, semi auto, but charge_allowance is false.
         //12 == button is pressed but the using_mode doesn't allow firing
+        //13 == weapon class intercept for reasons 4 and 7. So it can handle them itself. Basically, tried to shoot, but can't shoot.
         u8 CanUseOnce(CControls@ controls, bool encore = true)
         {
             if(getUseAfterdelayLeft() != 0.0f)//If use afterdelay is not over
@@ -1083,7 +1087,7 @@ namespace it
 
             if(return_value == 0)//If this was going to return true
             {
-                if(getAmmoLeft() == 0.0f)//And there was no ammo left
+                if(getVF32(MagLeft) == 0.0f)//And there was no ammo left
                 {
                     return 7;//Nada
                 }
@@ -1113,10 +1117,8 @@ namespace it
                 //TODO Apply knockback per use somehow
             }
 
-            if(use_sfx != "")
-            {
-                Sound::Play(use_sfx);//TODO, make sfx better. Have position, volume, pitch as variables. Every client should hear the shots.
-            }
+
+            PlaySoundAll(owner_blob, use_sfx, 1, 1);
         }
         void UseOnceReduction(bool ammo_too)
         {
@@ -1124,7 +1126,7 @@ namespace it
         
             if(ammo_too)
             {
-                setAmmoLeft(getAmmoLeft() - 1.0f);
+                setVF32(MagLeft, getVF32(MagLeft) - 1.0f);
             }
 
             setVF32(CurrentCharge, getVF32(CurrentCharge) - charge_down_per_use[CurrentValue], false);
@@ -1145,7 +1147,7 @@ namespace it
             if(include_sfx)
             {
                 bs.write_string(use_sfx);
-                bs.write_string(empty_total_sfx);
+                bs.write_string(empty_mag_sfx);
             }
             return true;
         }
@@ -1157,7 +1159,7 @@ namespace it
             if(include_sfx)
             {
                 if(!bs.saferead_string(use_sfx)) { Nu::Error("Failed to deserialize use_sfx"); return false; }
-                if(!bs.saferead_string(empty_total_sfx)) { Nu::Error("Failed to deserialize empty_total_sfx"); return false; }
+                if(!bs.saferead_string(empty_mag_sfx)) { Nu::Error("Failed to deserialize empty_mag_sfx"); return false; }
             }
             return true;
         }
@@ -1178,16 +1180,10 @@ namespace it
             setVF32(UseAfterdelayLeft, value);
         }
 
-        Modif32@ max_ammo = Modif32("max_ammo", 1.0f);//Max amount of times this can be used
+        Modif32@ mag_size = Modif32("mag_size", 1.0f);//Max amount of times this can be used
+        
 
-        f32 getAmmoLeft()
-        {
-            return getVF32(AmmoLeft);
-        }
-        void setAmmoLeft(f32 value, bool sync_value = true)
-        {
-            setVF32(AmmoLeft, value, sync_value);
-        }
+        
         
         Modif32@ knockback_per_use = Modif32("knockback_per_use", 0.0f);//pushes you around when activated, specifically it pushes you away from the direction your mouse is aiming.
 
@@ -1243,7 +1239,7 @@ namespace it
         //SFX
             string use_sfx;
             
-            string empty_total_sfx;//When this has 0 ammo total but a use is attempted.
+            string empty_mag_sfx;//When this has 0 ammo total but a use is attempted.
         //SFX
         
 
@@ -1272,7 +1268,7 @@ namespace it
             shot_func = @null;
 
             shot_sfx = "";
-            empty_total_ongoing_sfx = "";
+            empty_mag_ongoing_sfx = "";
         }
         void Init(u16 _initial_item) override
         {
@@ -1349,6 +1345,7 @@ namespace it
 
             if(getVF32(LastShot) == Nu::s32_max()) { setVF32(LastShot, 0.0f, false); }
             setVF32(LastShot, getVF32(LastShot) + 1, false);
+            syncVF32(LastShot);
 
             if(getVF32(ShotAfterdelayLeft) > 0)
             {
@@ -1360,8 +1357,8 @@ namespace it
 
         u8 ShootingLogic()
         {
-            while(true)//For shooting several queued shots in one tick
-            {
+            //while(true)//For shooting several queued shots in one tick//Disabled, as LastShotDirection would be overwritten and not used properly.
+            //{
                 //Do shot logic
                 u8 can_shoot_reason = CanShootOnce();
                 if(can_shoot_reason == 1)//No queued up shots
@@ -1375,17 +1372,17 @@ namespace it
                 else if(can_shoot_reason == 0)//Can shoot
                 {
                     ShootOnce();
-                    if(getVF32(ShotAfterdelayLeft) == 0){ continue; }//If there is literally no shot_afterdelay, shoot again right here right now.
+                    //if(getVF32(ShotAfterdelayLeft) == 0){ continue; }//If there is literally no shot_afterdelay, shoot again right here right now.
                 }
                 else if(can_shoot_reason == 5)//Out of ammo from ongoing queued up shots
                 {
                     //TODO: have a bool that changes how this behaves. If the bool is true; it removes all queued shots. If the bool is false; it behaves like it was shooting normally, just nothing was triggered and no heat was generated.
                     setVF32(QueuedShots, 0);//Remove all queued up shots.
-                    if(empty_total_ongoing_sfx != "") { Sound::Play(empty_total_ongoing_sfx); }
+                    PlaySoundAll(owner_blob, empty_mag_ongoing_sfx, 1, 1);
                 }
 
                 return can_shoot_reason;
-            }
+            //}
 
             return 255;
         }
@@ -1411,7 +1408,7 @@ namespace it
             {
                 return 2;
             }
-            if(getAmmoLeft() - ammo_per_shot[CurrentValue] < 0.0f)//If there is not enough ammo for another shot
+            if(getVF32(MagLeft) - ammo_per_shot[CurrentValue] < 0.0f)//If there is not enough ammo for another shot
             {
                 return 5;
             }
@@ -1425,9 +1422,12 @@ namespace it
             @shot_func = @value;
         }
         
-        void ShootOnce(bool call_func = true)
+        void ShootOnce(bool call_func = true, bool ammo_too = true)
         {
-            setAmmoLeft(getAmmoLeft() - ammo_per_shot[CurrentValue]);
+            if(ammo_too)
+            {
+                setVF32(MagLeft, getVF32(MagLeft) - ammo_per_shot[CurrentValue]);
+            }
             setVF32(QueuedShots, getVF32(QueuedShots) - 1);
             setVF32(LastShot, 0);
 
@@ -1436,9 +1436,9 @@ namespace it
                 Nu::Warning("shot_afterdelay_left was not 0 when shooting (was " + getVF32(ShotAfterdelayLeft) + "), something somewhere somehow is wrong. Good luck.");
             }
             setVF32(ShotAfterdelayLeft, shot_afterdelay[CurrentValue]);
-            if(getAmmoLeft() < 0.0f)
+            if(getVF32(MagLeft) < 0.0f)
             {
-                Nu::Warning("ammo_left went below 0 (was " + getAmmoLeft() + "), something somewhere somehow is wrong. Good luck.");
+                Nu::Warning("mag_left went below 0 (was " + getVF32(MagLeft) + "), something somewhere somehow is wrong. Good luck.");
             }
 
             if(call_func && shot_func != @null)//If the function to call exists
@@ -1447,10 +1447,7 @@ namespace it
                 //TODO Apply knockback per shot somehow
             }
 
-            if(shot_sfx != "")
-            {
-                Sound::Play(shot_sfx);//TODO, make sfx better. Have position, volume, pitch as variables. Every client should hear the shots.
-            }
+            PlaySoundAll(owner_blob, shot_sfx, 1, 1);
         }
 
         //
@@ -1489,7 +1486,7 @@ namespace it
             {
                 //No ammo logic.
                 if(no_ammo_no_shots[CurrentValue] == true//and if no_ammo_no_shots is true
-                && getVF32(QueuedShots) * ammo_per_shot[CurrentValue] + shots_per_use[CurrentValue] * ammo_per_shot[CurrentValue] > getAmmoLeft())//and if the current amount of shots plus the amount that would be added would go past max ammo.
+                && getVF32(QueuedShots) * ammo_per_shot[CurrentValue] + shots_per_use[CurrentValue] * ammo_per_shot[CurrentValue] > getVF32(MagLeft))//and if the current amount of shots plus the amount that would be added would go past max ammo.
                 {
                     if(getVF32(QueuedShots) != 0)//Queued shots still going on?
                     {
@@ -1543,7 +1540,7 @@ namespace it
 
                 Modibool@ use_with_shot_afterdelay = Modibool("use_with_shot_afterdelay", false);//When this is false, you cannot use the weapon when shot afterdelay is not 0. When this is true, you can queue up more shots with less care.
 
-                Modibool@ no_ammo_no_shots = Modibool("no_ammo_no_shots", true);//If this is true, using this wont setup queued shots if the amount of queued up shots left would pass ammo_left. If this is false, it will glady setup 3 shots even if there is only 2 ammo left.
+                Modibool@ no_ammo_no_shots = Modibool("no_ammo_no_shots", true);//If this is true, using this wont setup queued shots if the amount of queued up shots left would pass mag_left. If this is false, it will glady setup 3 shots even if there is only 2 ammo left.
                 
                 Modif32@ shot_afterdelay = Modif32("shot_afterdelay", 0.0f);//Only relevant if the stat above is more than 0
                 //vf32[ShotAfterdelayLeft];
@@ -1565,7 +1562,7 @@ namespace it
             if(include_sfx)
             {
                 bs.write_string(shot_sfx);
-                bs.write_string(empty_total_ongoing_sfx);
+                bs.write_string(empty_mag_ongoing_sfx);
             }
             return true;
         }
@@ -1577,7 +1574,7 @@ namespace it
             if(include_sfx)
             {
                 if(!bs.saferead_string(shot_sfx)) { Nu::Error("Failed to deserialize shot_sfx"); return false; }
-                if(!bs.saferead_string(empty_total_ongoing_sfx)) { Nu::Error("Failed to deserialize empty_total_ongoing_sfx"); return false; }
+                if(!bs.saferead_string(empty_mag_ongoing_sfx)) { Nu::Error("Failed to deserialize empty_mag_ongoing_sfx"); return false; }
             }
             return true;
         }
@@ -1586,7 +1583,7 @@ namespace it
         //SFX
             string shot_sfx;
 
-            string empty_total_ongoing_sfx;//Out of ammo from ongoing queued up shots
+            string empty_mag_ongoing_sfx;//Out of ammo from ongoing queued up shots
         //SFX
     }
 
@@ -1594,6 +1591,7 @@ namespace it
     enum ItemAimFloats
     {
         CurrentSpread = ItemFloatCount,
+        LastShotDirection,
 
         ItemAimFloatCount
     }
@@ -1644,6 +1642,7 @@ namespace it
             item::setVars();
             
             setVF32(CurrentSpread, 0, false);
+            setVF32(LastShotDirection, 0, false);
         }
         
         void BaseValueChanged(int _name_hash) override//Called if a base value is changed.
@@ -1654,6 +1653,7 @@ namespace it
         void DebugVars() override
         {
             print("current_spread = " + getVF32(CurrentSpread), debug_color);
+            print("last_shot_direction = " + getVF32(LastShotDirection), debug_color);
             item::DebugVars();
         }
 
@@ -1689,9 +1689,9 @@ namespace it
 
 
 
-        void ShootOnce(bool call_func = true)
+        void ShootOnce(bool call_func = true, bool ammo_too = true)
         {
-            item::ShootOnce(false);//Do not call the function
+            item::ShootOnce(false, ammo_too);//Do not call the function
 
             if(call_func && shot_func != @null)//If the function to call exists
             {
@@ -1699,13 +1699,17 @@ namespace it
 
                 f32 random_aim = Nu::getRandomF32(getVF32(CurrentSpread) * -0.5f, getVF32(CurrentSpread) * 0.5f);
 
+                setVF32(LastShotDirection, random_aim + random_deviation);
+
                 print("\nrandom_deviation = " + random_deviation);
                 print("current_spread = " + getVF32(CurrentSpread));
                 print("random_aim = " + random_aim);
+                print("LastShotDirection = " + getVF32(LastShotDirection));
 
-                shot_func(@this, random_aim + random_deviation);//Call it
+                shot_func(@this, getVF32(LastShotDirection));//Call it
                 //TODO Apply knockback per shot somehow
             }
+
 
             setVF32(CurrentSpread, getVF32(CurrentSpread) + spread_gain_per_shot[CurrentValue], false);
             if(getVF32(CurrentSpread) > max_shot_spread[CurrentValue])
@@ -1716,18 +1720,20 @@ namespace it
         }
 
 
-
         //AIMING
             //
             //vf32[CurrentSpread];
 
+            //Deviation
             Modif32@ random_shot_spread = Modif32("random_shot_spread", 0.0f);//Value that changes direction of where the shot is aimed by picking a value between 0 and this variable. Half chance to invert the value. Applies this to the direction the shot would be going.
 
             Modif32@ min_shot_spread = Modif32("min_shot_spread", 0.0f);//Min deviation from aimed point for shot.
             Modif32@ max_shot_spread = Modif32("max_shot_spread", 9999.0f);//Max deviation from aimed point for shot.
 
+            //Recoil
             Modif32@ spread_gain_per_shot = Modif32("spread_gain_per_shot", 0.0f);//(not per projectile. Per SHOT) (Otherwise known as recoil) (capped to max_shot_spread)
 
+            //Recoil control
             Modif32@ spread_loss_per_tick = Modif32("spread_loss_per_tick", 0.0f);// (capped to min_projectile_spread)
 
             //Multiplier applied to each value when crouching? Nah
@@ -1744,6 +1750,8 @@ namespace it
         QueuedProjectiles = ItemAimFloatCount,
         ProjectileAfterdelayLeft,
         Heat,
+        ReloadTimeLeft,
+        MaxAmmoLeft,
 
         WeaponFloatCount
     }
@@ -1766,8 +1774,8 @@ namespace it
         {
             projectile_sfx = "";
             reload_sfx = "";
-            empty_clip_sfx = "";
-            empty_clip_use_sfx = "";
+            empty_max_ammo_sfx = "";
+            //empty_mag_use_sfx = "";
             equip_weapon_sfx = "";
         }
         void Init(u16 _initial_item) override
@@ -1777,8 +1785,8 @@ namespace it
                 init = true;//Init has been called.
                 class_type = ClassWeapon;
                 
-                ResizeThings(6 + 6 + 5,//f32
-                2 + 3 + 0,//bool
+                ResizeThings(6 + 6 + 5 + 9,//f32
+                2 + 3 + 0 + 2,//bool
                 WeaponFloatCount,//vf32
                 WeaponBoolCount//vbool
                 );
@@ -1799,12 +1807,16 @@ namespace it
             f32_array.push_back(@projectiles_per_shot);
             f32_array.push_back(@projectile_afterdelay);
             f32_array.push_back(@random_projectile_spread);
-            f32_array.push_back(@same_tick_forced_spread);
+            //f32_array.push_back(@same_tick_forced_spread);
             f32_array.push_back(@max_heat);
-            f32_array.push_back(@overheating_mult);
             f32_array.push_back(@heat_loss_per_tick);
             f32_array.push_back(@heat_gain_per_shot);
             f32_array.push_back(@damage_on_overheat);
+
+            f32_array.push_back(@max_ammo);
+            f32_array.push_back(@ammo_to_mag_per_reload);
+            f32_array.push_back(@reload_time);
+            bool_array.push_back(@auto_reload);
 
         }
         void setVars() override
@@ -1814,6 +1826,9 @@ namespace it
             setVF32(QueuedProjectiles, 0, false);
             setVF32(ProjectileAfterdelayLeft, 0, false);
             setVF32(Heat, 0, false);
+            setVF32(MaxAmmoLeft, 0, false);
+            setVF32(ReloadTimeLeft, 0, false);
+
             setVBool(Overheating, false, false);
         }
         
@@ -1824,6 +1839,9 @@ namespace it
         
         void DebugVars() override
         {
+            print("Heat = " + getVF32(Heat), debug_color);
+            print("MaxAmmoLeft = " + getVF32(MaxAmmoLeft), debug_color);
+            print("ReloadTimeLeft = " + getVF32(ReloadTimeLeft), debug_color);
             itemaim::DebugVars();
         }
 
@@ -1832,9 +1850,229 @@ namespace it
         {
             if(!itemaim::Tick(@controls)){ return false; }
 
+            ProjectileLogic();
+
+            ReloadLogic(@controls);
+
             return true;
         }
 
+        void ReloadLogic(CControls@ controls)
+        {
+            if(getVF32(ReloadTimeLeft) != 0) { return; }//Currently reloading
+            //Not currently reloading
+            if(getVF32(MagLeft) == 0 && getVF32(LastShot) == 0//Just ran out of ammo in mag.
+            && getVF32(MaxAmmoLeft) != 0)//And there is still ammo to reload.
+            {
+
+                if(auto_reload[CurrentValue])//if auto_reload is true
+                {
+                    setVF32(ReloadTimeLeft, reload_time[CurrentValue]);//Reload
+                    PlaySoundAll(owner_blob, reload_sfx, 1, 1);
+                    return;
+                }
+            }
+
+            if(!controls.isKeyJustPressed(KEY_KEY_R)) { return; }
+            //reload key just pressed?
+
+            if(getVF32(MaxAmmoLeft) == 0//If there isn't any more max ammo
+            || mag_size[CurrentValue] == getVF32(MagLeft))//or the mag is full
+            {
+                return;//Stop
+            }
+
+            setVF32(ReloadTimeLeft, reload_time[CurrentValue]);//Reload
+            PlaySoundAll(owner_blob, reload_sfx, 1, 1);
+        }
+
+        u8 ProjectileLogic()
+        {
+            while(true)//For creating several queued projectiles in one tick
+            {
+                //Do projectile logic
+                u8 can_projectile_reason = CanProjectileOnce();
+                if(can_projectile_reason == 1)//No queued up projectiles
+                {
+                    
+                }
+                else if(can_projectile_reason == 2)//delay between projectiles
+                {
+
+                }
+                else if(can_projectile_reason == 0)//Can projectile
+                {
+                    ProjectileOnce();
+                    if(getVF32(ProjectileAfterdelayLeft) == 0){ continue; }//If there is literally no projectile_afterdelay_left, projectile again right here right now.
+                }
+
+                return can_projectile_reason;
+            }
+
+            return 255;
+        }        
+        //Reason
+        //0 == can projectile
+        //1 == no queued projectiles
+        //2 == delay between projectiles
+        u8 CanProjectileOnce()
+        {
+            if(getVF32(QueuedProjectiles) == 0)
+            {
+                return 1;
+            }
+            if(getVF32(ProjectileAfterdelayLeft) > 0)
+            {
+                return 2;
+            }
+            return 0;
+        }
+
+        void ProjectileOnce()
+        {
+            print("projectile!");
+
+            setVF32(ProjectileAfterdelayLeft, projectile_afterdelay[CurrentValue]);
+            setVF32(QueuedProjectiles, getVF32(QueuedProjectiles) - 1.0f);//Remove projectile
+
+            f32 aim_direction = getVF32(LastShotDirection) 
+            + Nu::getRandomF32(random_projectile_spread[CurrentValue] * -0.5, (random_projectile_spread[CurrentValue] * 0.5f));
+
+
+        }
+
+        void DelayLogic(CControls@ controls) override
+        {
+            itemaim::DelayLogic(@controls);
+
+            if(getVF32(Heat) > 0)
+            {
+                bool overheating_now = false;
+                if(getVF32(Heat) > max_heat[CurrentValue])
+                {
+                    overheating_now = true;
+                }
+
+                setVF32(Heat, getVF32(Heat) - heat_loss_per_tick[CurrentValue], false);
+                if(getVF32(Heat) < 0)
+                {
+                    setVF32(Heat, 0, false);
+                }
+                
+                if(overheating_now && getVF32(Heat) <= max_heat[CurrentValue])//Was just overheating, and is overheating no more.
+                {
+                    shot_afterdelay[AddMult] = shot_afterdelay[AddMult] - overheating_shotdelay_mult;//Remove shotdelay_mult
+                }
+
+                syncVF32(Heat);
+            }
+
+            if(getVF32(ProjectileAfterdelayLeft) > 0)
+            {
+                setVF32(ProjectileAfterdelayLeft, getVF32(ProjectileAfterdelayLeft) - 1.0f, false);
+                if(getVF32(ProjectileAfterdelayLeft) < 0.0f){ setVF32(ProjectileAfterdelayLeft, 0.0f, false); }
+                syncVF32(ProjectileAfterdelayLeft);
+            }
+
+            if(getVF32(ReloadTimeLeft) > 0)
+            {
+                setVF32(ReloadTimeLeft, getVF32(ReloadTimeLeft) - 1.0f, false);
+                if(getVF32(ReloadTimeLeft) < 0.0f){ setVF32(ReloadTimeLeft, 0.0f, false); }
+                if(getVF32(ReloadTimeLeft) == 0)//Finished reloading?
+                {
+                    f32 ammo_to_reload = ammo_to_mag_per_reload[CurrentValue];
+                    if(ammo_to_reload > getVF32(MaxAmmoLeft))//Not enough max_ammo to reload?
+                    {
+                        ammo_to_reload = getVF32(MaxAmmoLeft);//ammo_to_reload is all that's left.
+                    }
+                    if(ammo_to_reload > mag_size[CurrentValue] - getVF32(MagLeft))//];//ammo_to_reload greater than can fit in mag?
+                    {
+                        ammo_to_reload = mag_size[CurrentValue] - getVF32(MagLeft);//ammo_to_reload is all that can fit.
+                    }
+
+
+                    if(ammo_to_reload == 0) { warning("ammo_to_reload was 0."); }
+
+                    setVF32(MagLeft, getVF32(MagLeft) + ammo_to_reload);
+                    setVF32(MaxAmmoLeft, getVF32(MaxAmmoLeft) - ammo_to_reload);
+
+                    if(getVF32(MaxAmmoLeft) == 0)//No more max ammo?
+                    {
+                        PlaySoundAll(owner_blob, empty_max_ammo_sfx, 1, 1);
+                    }
+
+                    if(getVF32(MagLeft) < mag_size[CurrentValue]//Still more to reload?
+                    && getVF32(MaxAmmoLeft) > 0)//And there is enough ammo to reload again
+                    {
+                        setVF32(ReloadTimeLeft, reload_time[CurrentValue], false);//Reload again.
+                    }
+                }
+                syncVF32(ReloadTimeLeft);
+            }
+        }
+
+
+        void ShootOnce(bool call_func = true, bool ammo_too = true)
+        {
+            itemaim::ShootOnce(call_func, ammo_too);//Don't eat ammo
+
+            //Eat ammo here
+
+
+
+            bool overheating_now = false;
+            if(getVF32(Heat) > max_heat[CurrentValue])
+            {
+                overheating_now = true;
+            }
+
+            setVF32(Heat, getVF32(Heat) + heat_gain_per_shot[CurrentValue]);//Add heat per shot
+
+            if(getVF32(Heat) > max_heat[CurrentValue])//If over max heat
+            {
+                if(!overheating_now)//If this just started to overheat
+                {
+                    shot_afterdelay[AddMult] = shot_afterdelay[AddMult] + overheating_shotdelay_mult;//add shotdelay_mult
+                }
+
+                if(damage_on_overheat[CurrentValue] != 0.0f)//Only if it does something
+                {
+                    if(owner_blob == @null) { Nu::Error("Tried applying overheat damage when owner_blob was null."); return; }
+
+                    CBitStream params;
+
+                    params.write_f32(damage_on_overheat[CurrentValue]);
+                    params.write_u8(Hitters::burn);
+
+                    owner_blob.SendCommand(owner_blob.getCommandID("damage_self"), params);
+                }
+            }
+
+            setVF32(QueuedProjectiles, getVF32(QueuedProjectiles) + projectiles_per_shot[CurrentValue]);//Add projectiles
+        }
+
+
+        /*u8 CanTrigger(CControls@ controls) override
+        {
+            u8 return_value = itemaim::CanTrigger(@controls);
+            if(return_value == 4 || return_value == 7)//If this was going to return true
+            {
+                return_value = 13;
+            }
+            return return_value;
+        }
+
+        u8 UsingLogic(CControls@ controls) override
+        {
+            u8 can_use_reason = itemaim::UsingLogic(@controls);
+
+            if(can_use_reason == 13)//If intercept reason, I.E out of ammo but tried using.
+            {
+                UseOnceReduction(false);//act like this was used, but don't use ammo or "use".
+            }
+
+            return can_use_reason;
+        }*/
 
         /*
         private float[] unequip_time = array<float>(2, 0.0f);//Ticks taken to unequip a weapon
@@ -1862,64 +2100,32 @@ namespace it
 
         //RELOADING
         //
-        /*
-        private float[] ammo_to_clip_per_reload = array<float>(2, 1.0f);//Amount of ammo added to the clip per reload. 0.0f means max ammo that can be added is added. (I.E default)
+
+        Modif32@ max_ammo = Modif32("max_ammo", 0.0f);//when mag_size is 0.0f, that means there is no mag, and ammo is directly pulled from max_ammo.
+
+        Modif32@ ammo_to_mag_per_reload = Modif32("ammo_to_mag_per_reload", Nu::s32_max());//Amount of ammo added to the mag per reload.
+
         //Weapon will continue to reload until clip is full, unless the weapon is used.
 
+            Modif32@ reload_time = Modif32("reload_time", 0.0f);//Time taken to reload a mag upon pressing the reload button. (in ticks(float ticks, don't think too hard about it.))
 
-            private float[] reload_time = array<float>(2, 0.0f);//Time taken to reload a clip upon pressing the reload button. (in ticks(float ticks, don't question it.))
-            float getReloadTime(bool get_base = false)
-            {
-                return reload_time[get_base ? 1 : 0];
-            }
-            void setReloadTime(float value)
-            {
-                reload_time[1] = value;
-                BaseValueChanged();
-            }
+            //getVF32(ReloadTimeLeft);//If this is above 0, the weapon is still reloading.
 
-            private float reload_time_left;//If this is above 0, the weapon is still reloading. It ticks down by one every 
-            float getReloadTimeLeft()
-            {
-                return reload_time_left;
-            }
-            void setReloadTimeLeft(float value)
-            {
-                reload_time_left = value;
-            }
-            bool isReloading()
-            {
-                if(getReloadTimeLeft() > 0.0f)
-                {
-                    return true;
-                }
-
-                return false;
-            }
-
-            private bool auto_reload;//If this is true, the weapon will automatically reload upon reaching a clip size of 0.
-            bool getAutoReload()
-            {
-                return auto_reload;
-            }
-            void setAutoReload(bool value)
-            {
-                auto_reload = value;
-            }
-        */
+            Modibool@ auto_reload = Modibool("auto_reload", false);//If this is true, the weapon will automatically reload upon reaching a clip size of 0.
+        
         //
         //RELOADING
 
         //HEAT
         //
         
-            bool overheating;//Is this weapon currently overheated? This weapon will be unable to output any shots while this value is true. This value will only stop being true once "heat" reaches 0.
+            /////////getVBool(Overheating);//Overheating//Is this weapon currently overheated? This weapon will be unable to output any shots while this value is true. This value will only stop being true once "heat" reaches 0.
 
-            f32 heat;//Current heat
+            //getVF32(Heat)//Current heat
 
-            Modif32@ max_heat = Modif32("max_heat", 0.0f);//Upon the value "heat" going above this value the bool "overheating" turns true.
+            Modif32@ max_heat = Modif32("max_heat", 0.0f);//Upon the value "heat" going above this value, the weapon is overheating.
 
-            Modif32@ overheating_mult = Modif32("overheating_mult", 1.0f);//The multiplier applied to "heat_loss_per_tick" when the bool "overheating" is true.
+            f32 overheating_shotdelay_mult = 2.0f;//The multiplier applied to "shot_afterdelay" when this weapon is over max heat. By default halves firerate.
 
             Modif32@ heat_loss_per_tick = Modif32("heat_loss_per_tick", 0.0f);
 
@@ -1942,10 +2148,10 @@ namespace it
 
             //AMOUNT
             //
-                f32 queued_projectiles;//Value that holds projectiles waiting to escape from the gun. Think shotgun like weapons.
+                //getVF32(QueuedProjectiles)//Value that holds projectiles waiting to escape from the gun. Think shotgun like weapons.
                 Modif32@ projectiles_per_shot = Modif32("projectiles_per_shot", 1.0f);//Amount of projectiles per shot.
                 Modif32@ projectile_afterdelay = Modif32("projectile_afterdelay", 0.0f);//Delay in ticks between each projectile
-                f32 projectile_afterdelay_left;
+                //getVF32(ProjectileAfterdelayLeft)//projectile_afterdelay_left;
             //
             //AMOUNT
 
@@ -1954,7 +2160,8 @@ namespace it
                 Modif32@ random_projectile_spread = Modif32("random_projectile_spread", 0.0f);//After random_shot_spread is applied, this applies to every projectile seperately. Otherwise known as deviation.
                 //If random_shot_spread changes the aimed direction for every projectile, this changes the aim direction for each projectile individually.
 
-                Modif32@ same_tick_forced_spread = Modif32("same_tick_forced_spread", 0.0f);//When two projectiles are shot in the same tick, this forces each projectile to by default aim x amount apart from each other.
+                //Difficult to code
+                //Modif32@ same_tick_forced_spread = Modif32("same_tick_forced_spread", 0.0f);//When two projectiles are shot in the same tick, this forces each projectile to by default aim x amount apart from each other.
                 //With three projectiles and a distance of 3.0f, the middle projectile will shot like normal, but the other two projectiles will be equally apart like a shotgun but without randomness.
                 //random_projectile_spread is applied after this.
             //
@@ -1972,9 +2179,9 @@ namespace it
         //
             string reload_sfx;
 
-            string empty_clip_sfx;//When the gun has 0 ammo in the clip.
+            string empty_max_ammo_sfx;//When the gun has 0 max_ammo
 
-            string empty_clip_use_sfx;//When the gun is attempted to use when there is no ammo in the clip, and auto_reload is false. empty_total and this never play at the same time.
+            //string empty_man_ammo_use_sfx;//When the gun is attempted to use when there is no ammo in max_ammo, and auto_reload is false.
 
             string equip_weapon_sfx;
         //
@@ -1998,6 +2205,13 @@ namespace it
 
     class GunProjectile
     {
+        //CREATION EFFECTS
+        //
+
+            f32 heat_gain;//Amount of heat the weapon gains per projectile.
+
+        //
+        //CREATION EFFECTS
         //HIT EFFECTS
         //
 
@@ -2022,7 +2236,7 @@ namespace it
         //
         //HIT EFFECTS
 
-        float friendly_fire_damage;//Mutliplier to the amount of damage hitting an ally with this does. Setting this value below 0 makes this projectile not even hit friendlies.
+        float friendly_fire_mult;//Mutliplier to the amount of damage hitting an ally with this does. Setting this value to 0 makes this projectile not collide with friendlies.
 
         //TRAVEL EFFECTS
         //
@@ -2058,6 +2272,8 @@ namespace it
 
             float aoe_stun_length;
 
+            f32 aoe_friendly_fire_mult;//Mult applied to the damage this aoe does to friendlies. Does not hit friendlies if this is 0.
+
         //
         //AOE
 
@@ -2079,6 +2295,16 @@ namespace it
 
 
 
+    void PlaySoundAll(CBlob@ blob, string sfx, f32 volume, f32 pitch)
+    {
+        if(blob == @null) { Nu::Error("blob was null when attempting to play sound to all"); return; }
+        if(sfx == "") { return; }
+        CBitStream bs;
+        bs.write_f32(volume);
+        bs.write_f32(pitch);
+        bs.write_string(Nu::CutOutFileName(sfx));
+        blob.SendCommand(blob.getCommandID("soundall"), bs);
+    }
 
 
 
@@ -2095,6 +2321,10 @@ namespace it
 
         this.addCommandID("add_modifier");
         this.addCommandID("remove_modifier");
+
+        this.addCommandID("damage_self");
+
+        this.addCommandID("soundall");
     }
 
     void onNewPlayerJoin(CRules@ this, CPlayer@ player)
@@ -2159,39 +2389,6 @@ namespace it
 
     bool onCommand(CBlob@ this, u8 cmd, CBitStream@ params)
     {
-        if(this.getCommandID("deserialize_equipment") == cmd)
-        {
-            print("deserialize_equipment");
-            array<it::IModiStore@>@ equipment;
-            if(!this.get("equipment", @equipment)) { Nu::Error("equipment array was null"); return true; }
-
-            if(equipment == @null) { Nu::Warning("equipment was null on deserialize_equipment"); return true; }
-
-            u8 class_type;
-            if(!params.saferead_u8(class_type)) { Nu::Error("failure to read class_type."); return true; }
-
-            u16 initial_item;
-            if(!params.saferead_u16(initial_item)) { Nu::Error("failure to read initial_item."); return true; }
-
-            u16 equip_slot;
-
-            IModiStore@ equip = @CreateItem(initial_item, @this,
-            true,//SFX
-            true,//Functions
-            false//Modivars
-            );
-            
-            if(!params.saferead_u16(equip_slot)) { Nu::Error("failure to read equip_slot."); return true; }
-
-            equip.Deserialize(@params);
-
-            @equipment[equip_slot] = @equip;
-            
-            //this.set_u8("equip_slot", equip_slot);
-        
-            return true;
-        }
-
         array<bool> any_true = array<bool>(6);
         any_true[0] = (this.getCommandID("syncvf32") == cmd);
         any_true[1] = (this.getCommandID("syncvbool") == cmd);
@@ -2210,7 +2407,71 @@ namespace it
             }
         }
 
-        if(!one_is_true) { return false; }
+        if(!one_is_true)//If none of the command id's above are true
+        {
+            if(this.getCommandID("soundall") == cmd)
+            {
+                f32 volume;
+                if(!params.saferead_f32(volume)) { Nu::Error("failure to read volume."); return true; }
+                f32 pitch;
+                if(!params.saferead_f32(pitch)) { Nu::Error("failure to read pitch."); return true; }
+                string sfx;
+                if(!params.saferead_string(sfx)) { Nu::Error("failure to read sfx."); return true; }
+
+                Sound::Play(sfx + ".ogg", this.getPosition(), volume, pitch);
+            }
+            else if(this.getCommandID("damage_self") == cmd)
+            {
+                print("damage_self");
+                f32 damage;
+                if(!params.saferead_f32(damage)) { Nu::Error("failure to read damage."); return true; }
+
+                u8 type;
+                if(!params.saferead_u8(type)) { Nu::Error("failure to read type."); return true; }
+
+                this.server_Hit(this, this.getPosition(), Vec2f(0,0), damage, type);
+
+                return true;
+            }
+            else if(this.getCommandID("deserialize_equipment") == cmd)
+            {
+                print("deserialize_equipment");
+                array<it::IModiStore@>@ equipment;
+                if(!this.get("equipment", @equipment)) { Nu::Error("equipment array was null"); return true; }
+
+                if(equipment == @null) { Nu::Warning("equipment was null on deserialize_equipment"); return true; }
+
+                u8 class_type;
+                if(!params.saferead_u8(class_type)) { Nu::Error("failure to read class_type."); return true; }
+
+                u16 initial_item;
+                if(!params.saferead_u16(initial_item)) { Nu::Error("failure to read initial_item."); return true; }
+
+                u16 equip_slot;
+
+                IModiStore@ equip = @CreateItem(initial_item, @this,
+                true,//SFX
+                true,//Functions
+                false//Modivars
+                );
+                
+                if(!params.saferead_u16(equip_slot)) { Nu::Error("failure to read equip_slot."); return true; }
+
+                equip.Deserialize(@params);
+
+                @equipment[equip_slot] = @equip;
+                
+                //this.set_u8("equip_slot", equip_slot);
+            
+                return true;
+            }
+            
+
+
+
+            
+            return false;    
+        }
         
         u16 id;//id
         if(!params.saferead_u16(id)) { Nu::Error("bleh0"); return true;}
