@@ -8,36 +8,6 @@ enum ModifierTypes
     PassiveAndActive
 }
 
-namespace mod
-{
-    enum CreatedModifiers
-    {
-        ExampleModifier = 1,
-        ExampleModifier2,
-        SUPPRESSINGFIRE,
-
-        ModifierCount
-    }
-}
-
-IModifier@ CreateModifier(u16 created_modifier, array<Modif32@>@ modi_array)
-{
-    switch (created_modifier)
-    {
-        case mod::ExampleModifier:
-            return @ExampleModifier(@modi_array);
-        case mod::ExampleModifier2:
-            return @ExampleModifier2(@modi_array);
-        case mod::SUPPRESSINGFIRE:
-            return @SUPPRESSINGFIRE(@modi_array);
-        default:
-            Nu::Error("No found modifier with created_modifier " + created_modifier);
-            break;
-    }
-
-    return @null;
-}
-
 class ModiHow//For modifying ModiVars
 {
     ModiHow()
@@ -105,7 +75,7 @@ interface IModifier
     u8 getModifierType();
     u16 getInitialModifier();
     void addModifier(string _name, f32 _by_what, u8 _how);
-    void ActiveTick();
+    void ActiveTick(bool in_use = true);
     void PassiveTick();
     void AntiPassiveTick();
     void ModiHowPassiveTick(bool invert_values = false);
@@ -169,7 +139,7 @@ class DefaultModifier : IModifier
         modify_how.push_back(@ModiHow(_name, _by_what, _how));
     }
 
-    void ActiveTick()//Called every tick
+    void ActiveTick(bool in_use = true)//Called every tick
     {
         
     }
@@ -225,9 +195,17 @@ class DefaultModifier : IModifier
             {
                 //modi_array[modi_pos][MaxValue] = modify_how[i].by_what;
             }
+            else if(modify_how[i].how == MultMult)
+            {
+                if(invert_values){ Nu::Error("Attempted MultMult with invert_values true. That isn't how MultMult works."); return; }//Stop if somehow got here with inverting values
+                    modify_how[i].how = modi_array[modi_pos].addMultMult(modify_how[i].by_what);//Add it, and store the id.
+            }
             else
             {
-                Nu::Error("Problemo. Too lazy to type out why.");
+                if(!modi_array[modi_pos].removeMultMult(modify_how[i].how))
+                {
+                    Nu::Error("Failed to remove MultMult, either the id somehow was wrong or this was a completely different non supported command. modify_how = " + modify_how[i].how + " with name " + modify_how[i].name); return;
+                }
             }
             /*if(modify_how[i].how == Set)
             {
@@ -238,93 +216,5 @@ class DefaultModifier : IModifier
 
             }*/
         }
-    }
-}
-
-
-
-
-
-
-class ExampleModifier : DefaultModifier
-{
-    ExampleModifier(array<Modif32@>@ modi_array)
-    {
-        Init(@modi_array);
-        
-        initial_modifier = mod::ExampleModifier;
-        
-        modifier_type = PassiveAndActive;
-
-        addModifier("morium_cost", 1.0f, AfterAdd);//Add 1 to the cost
-        addModifier("morium_cost", 1.0f, AddMult);//Add 1.0f to what the end result will be multiplied by.
-
-    }
-
-    void ActiveTick() override
-    {
-        DefaultModifier::ActiveTick();
-    
-        //Do whatever logic you want to the array here.
-
-        u16 modi_pos = getModiVarPos(modi_array, "morium_cost".getHash());
-        
-        Random@ rnd = Random(getGameTime());//Random with seed
-        float random_number = Nu::getRandomF32(0, 2);//Random number between 0 and 2 (float)
-
-        //modi_array[modi_pos][AddMult] = modi_array[modi_pos][AddMult] - random_number;//Subtract the multiplier by this number
-    }
-    void PassiveTick() override //Called on creation
-    {
-        DefaultModifier::PassiveTick();
-    
-        //Do whatever logic you want to the array here.
-
-    }
-
-    void AntiPassiveTick() override //Called on removal
-    {
-        DefaultModifier::AntiPassiveTick();
-    
-        //Do whatever logic you want to the array here.
-    }
-
-}
-
-class ExampleModifier2 : DefaultModifier
-{
-    ExampleModifier2(array<Modif32@>@ modi_array)
-    {
-        Init(@modi_array);
-
-        modifier_type = Passive;
-
-        initial_modifier = mod::ExampleModifier2;
-
-        setName("example2");
-
-        addModifier("morium_cost", 1.0f, AfterAdd);
-    }
-
-    //Nothing more is required.
-}
-
-class SUPPRESSINGFIRE : DefaultModifier//SUPRESSING FIRE!: Much larger clip size, larger max ammo, longer reload time, cheaper ammo, less heat, more recoil.
-{
-    SUPPRESSINGFIRE(array<Modif32@>@ modi_array)
-    {
-        Init(@modi_array);
-
-        modifier_type = Passive;
-
-        initial_modifier = mod::SUPPRESSINGFIRE;
-
-        addModifier("max_ammo", 1.0f, AddMult);//Double ammo
-        addModifier("shot_afterdelay", -0.5f, AddMult);//Double firerate
-        //Clip size
-        //Reload time
-        //addModifier("morium_cost", -0.5f, AddMult);//Morium cost for the entire weapon is always the same. It always costs the same amount no matter the max_ammo. More ammo means cheaper ammo in a way.
-        //Heat
-        addModifier("spread_gain_per_shot", 1.0f, AddMult);//Double spread
     }
 }

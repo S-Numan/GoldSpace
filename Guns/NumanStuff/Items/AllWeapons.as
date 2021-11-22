@@ -62,14 +62,18 @@ namespace wep
 
 it::IModiStore@ CreateItem(u16 created_item, CBlob@ owner, bool include_sfx = true, bool include_functions = true, bool include_modivars = true)
 {
+    it::IModiStore@ item = @null;
+
     if(created_item < wep::WeaponCount)
     {//Weapons
         switch (created_item)
         {
             case wep::TestWeapon:
-                return @TestWeapon(created_item, @owner, include_sfx, include_functions, include_modivars);
+                @item = @TestWeapon(created_item, @owner, include_sfx, include_functions, include_modivars);
+                break;
             case wep::StandardPistol:
-                return @StandardPistol(created_item, @owner, include_sfx, include_functions, include_modivars);
+                @item = @StandardPistol(created_item, @owner, include_sfx, include_functions, include_modivars);
+                break;
             default:
                 Nu::Error("No found item with created_item " + created_item);
                 break;
@@ -79,7 +83,14 @@ it::IModiStore@ CreateItem(u16 created_item, CBlob@ owner, bool include_sfx = tr
     {//Items
         Nu::Error("No found item with created_item " + created_item);
     }
-    return @null;
+
+    
+    array<Modif32@>@ f32_array = @item.getF32Array();
+
+    if(item.hasVF32(it::MagLeft)) { item.setVF32(it::MagLeft, f32_array[item.getModif32Point("mag_size")][CurrentValue], false); }//False means don't sync
+    if(item.hasVF32(it::MaxAmmoLeft)) { item.setVF32(it::MaxAmmoLeft, f32_array[item.getModif32Point("max_ammo")][CurrentValue], false); }
+    
+    return @item;
 }
 
 it::weapon@ TestWeapon(u16 created_weapon, CBlob@ owner, bool include_sfx, bool include_functions, bool include_modivars)
@@ -119,8 +130,7 @@ it::weapon@ TestWeapon(u16 created_weapon, CBlob@ owner, bool include_sfx, bool 
         example_thing.setSyncModivars(false);
         
         example_thing.mag_size[BaseValue] = 17;
-        example_thing.setVF32(it::MagLeft, example_thing.mag_size[CurrentValue], false);//False means don't sync
-
+        
         example_thing.shots_per_use[BaseValue] = 5;//5 Shots per use
 
         example_thing.shot_afterdelay[BaseValue] = 15;//Half a second per shot
@@ -164,7 +174,6 @@ it::weapon@ TestWeapon(u16 created_weapon, CBlob@ owner, bool include_sfx, bool 
 
 
         example_thing.max_ammo[BaseValue] = 7;
-        example_thing.setVF32(it::MaxAmmoLeft, example_thing.max_ammo[CurrentValue], false);
 
 
         example_thing.reload_time[BaseValue] = 15;
@@ -218,7 +227,6 @@ it::weapon@ StandardPistol(u16 created_weapon, CBlob@ owner, bool include_sfx, b
         weapon.setSyncModivars(false);
 
         weapon.mag_size[BaseValue] = 17;
-        weapon.setVF32(it::MagLeft, weapon.mag_size[CurrentValue], false);//False means don't sync
     
         weapon.setSyncModivars(true);
     }

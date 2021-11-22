@@ -15,12 +15,6 @@ void onInit(CBlob@ this)
     this.set("equipment", @equipment);//Equipment
     
     this.set_u8("current_equip", 0);//Currently equiped thing in equipment array
-
-    if(isClient())
-    {
-        this.set_u32("ded", getGameTime() + 1);
-        this.Sync("ded", true);
-    }
 }
 
 void onReload(CBlob@ this)

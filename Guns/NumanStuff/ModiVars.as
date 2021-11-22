@@ -26,13 +26,36 @@
     void multMult(f32 _value);
 }*/
 
+//I don't know what I'm doing.
+int findFirstMissing(array<u16> int_array, int start, int end)//Array must be sorted from least to most
+{
+    if (start > end)//If the start value is greater than the end value. (no more to look through?)
+    {
+        return end + 1;//Should this + 1 exist?
+    }
+    
+    //Is this if statement needed?
+    if (start != int_array[start])//If the start position is not equal to this position in the array.
+    {
+        return start;//Found the free position.
+    }
+    int mid = (start + end) / 2;//Find middle position
+    //int mid = start + (end - start) / 2;//alternative?
+
+    //if the mid-index matches with its value, then the mismatch lies on the right half
+    if (int_array[mid] == mid)
+        return findFirstMissing(int_array, mid+1, end);
+    //mismatch of left half
+    return findFirstMissing(int_array, start, mid);//mid - 1?
+}
 
 
 enum HowToModify
 {
     BeforeAdd = 2,//Add to the value before the multiplier takes effect
     AfterAdd = 4,//Add to the value after the multiplier takes effect
-    AddMult = 3,//Multiply the value along with other ModiHow's.
+    AddMult = 3,//Additive multiplication to the value along with other ModiHow's.
+    MultMult = ValueCount//Multiplicative.
 }
 //These two enums work together just fine.
 enum WhatValue
@@ -107,15 +130,29 @@ class Modif32 : ModiBase
         value[MinValue] = Nu::s32_min();//Min value that CurrentValue can be
 
         value[MaxValue] = Nu::s32_max();//Max value that CurrentValue can be
+    
+
+        multmultid = array<u16>();
+        multmultvalue = array<f32>();
     }
 
     private f32[] value;
 
+    private u16[] multmultid;//Matches up to each multmultvalue.
+    private f32[] multmultvalue;//Multiplicative. Each in this array is applied one after another after MultValue.
+
     f32 getValue()//Return the current value
     {
-        //return the (base value + before add) multiplied by the multiplier value, then the after add value afterwards. Then clamp between min and max values
         //Don't do this unless any of the values changed for optimization purposes. TODO numan
-        return Maths::Clamp((value[BaseValue] + value[BeforeAdd]) * value[MultValue] + value[AfterAdd], value[MinValue], value[MaxValue]);
+        
+        f32 start_value = (value[BaseValue] + value[BeforeAdd]) * value[MultValue];//the (base value + before add) multiplied by the multiplier value.
+
+        for(u16 i = 0; i < multmultvalue.size(); i++)//Then apply each multmult value.
+        {
+            start_value *= multmultvalue[i];
+        }
+
+        return Maths::Clamp(start_value + value[AfterAdd], value[MinValue], value[MaxValue]);//then the after add value afterwards. Then clamp between min and max values
     }//If it makes it easier, think of the current value as a temp value, and the base value as the default value.
 
     void setValue(f32 _value)//Sets the base value only. The current value should only be changed by modifiers. For example, a laserpointer is a modifier that applies itself to accuracy, raising it.
@@ -159,6 +196,37 @@ class Modif32 : ModiBase
         
     }
 
+    //returns an id that is uniquely for this added value.
+    u16 addMultMult(f32 _value)//Multiplicative.
+    {
+        multmultvalue.push_back(_value);
+        
+        array<u16> sorted = multmultid;
+        sorted.sortAsc();
+        u16 _id = findFirstMissing(sorted, 0, sorted.size() - 1);
+        multmultid.push_back(_id);
+
+        return _id;
+    }
+    bool removeMultMult(u16 _id)
+    {
+        bool success = false;
+        for(u16 i = 0; i < multmultid.size(); i++)
+        {
+            if(multmultid[i] == _id)
+            {
+                multmultvalue.removeAt(i);
+                multmultid.removeAt(i);
+                success = true;
+            }
+        }
+        return success;
+    }
+    void ResizeMultMult(u16 _value)
+    {
+        multmultvalue.resize(_value);
+        multmultid.resize(_value);
+    }
 
     bool Serialize(CBitStream@ bs)
     {

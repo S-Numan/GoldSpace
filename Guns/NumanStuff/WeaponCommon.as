@@ -1,8 +1,9 @@
 #include "NuLib.as";
 #include "ModiVars.as";
-#include "WeaponModifiers.as";
+#include "ModifierCommon.as";
 #include "AllWeapons.as";
 #include "Hitters.as";
+#include "WeaponModifiers.as";
 
 //Change clip to mag. It's shorter and more accurate based on the logic.
 
@@ -92,7 +93,7 @@ namespace it
         void Init(u16 _initial_item);
         void Init(u16 _initial_item, CBlob@ _blob);
         void AfterInit();
-        bool Tick(CControls@ controls);
+        bool Tick(CControls@ controls, bool in_use = true);
 
         u16 getInitialItem();
 
@@ -114,11 +115,13 @@ namespace it
         array<f32>@  getVF32();
         f32 getVF32(u8 pos);
         void setVF32(u8 pos, f32 value, bool sync_value = true);
+        bool hasVF32(u8 pos);
         void syncVF32(u8 pos);
         array<bool>@ getVF32Sync();
         array<bool>@ getVBool();
         bool getVBool(u8 pos);
         void setVBool(u8 pos, bool value, bool sync_value = true);
+        bool hasVBool(u8 pos);
         void syncVBool(u8 pos);
         array<bool>@ getVBoolSync();
 
@@ -132,7 +135,7 @@ namespace it
         bool removeModifier(int _name_hash, bool sync = true);
         bool removeModifier(string _name, bool sync = true);
         void DebugModiVars(bool full_data = false);
-        void TickActiveModifiers();
+        void TickActiveModifiers(bool in_use);
 
         bool hasTag(string tag_string);
         bool hasTag(int tag_hash);
@@ -388,7 +391,7 @@ namespace it
             vboolsync.resize(vbool_size);
         }
 
-        bool Tick(CControls@ controls)
+        bool Tick(CControls@ controls, bool in_use = true)
         {
             if(ticks_since_created == Nu::u32_max())//In this area, things only happen once.
             {
@@ -400,8 +403,9 @@ namespace it
 
             ticks_since_created++;
 
-            TickActiveModifiers();
 
+            TickActiveModifiers(in_use);
+            
             return true;
         }
 
@@ -446,6 +450,10 @@ namespace it
                 syncVF32(pos);
             }
         }
+        bool hasVF32(u8 pos)
+        {
+            return pos < vf32.size();
+        }
         void syncVF32(u8 pos)
         {
             if(!vf32sync[pos]) { return; }
@@ -487,6 +495,10 @@ namespace it
             {
                 syncVBool(pos);
             }
+        }
+        bool hasVBool(u8 pos)
+        {
+            return pos < vbool.size();
         }
         void syncVBool(u8 pos)
         {
@@ -587,13 +599,13 @@ namespace it
             }
         }
 
-        void TickActiveModifiers()
+        void TickActiveModifiers(bool in_use)
         {
             for(u16 i = 0; i < all_modifiers.size(); i++)
             {
                 if(all_modifiers[i].getModifierType() != Passive)
                 {
-                    all_modifiers[i].ActiveTick();
+                    all_modifiers[i].ActiveTick(in_use);
                 }
             }
         }
@@ -646,15 +658,15 @@ namespace it
 
         bool addModifier(IModifier@ _modi, bool sync = true)
         {
-            if(owner_blob == @null) { Nu::Error("owner_blob was null on attempt to sync"); return false; }
-            if(!IsMine(@owner_blob)) { Nu::Warning("Client/Server that didn't own blob tried altering item"); return false; }
-
             if(!sync)
             {
                 all_modifiers.push_back(@_modi);
                 _modi.PassiveTick();
                 return true;
             }
+
+            if(owner_blob == @null) { Nu::Error("owner_blob was null on attempt to sync"); return false; }
+            if(!IsMine(@owner_blob)) { Nu::Warning("Client/Server that didn't own blob tried altering item"); return false; }
 
             CBitStream params;
 
@@ -670,8 +682,6 @@ namespace it
         }
         bool removeModifier(u16 _pos, bool sync = true)
         {
-            if(owner_blob == @null) { Nu::Error("owner_blob was null on attempt to sync"); return false; }
-            if(!IsMine(@owner_blob)) { Nu::Warning("Client/Server that didn't own blob tried altering item"); return false; }
             if(_pos >= all_modifiers.size()) { Nu::Error("Reached out of bounds. Attempted to reach " + _pos + " while all_modifiers.size() was " + all_modifiers.size()); return false; }
 
             if(!sync)
@@ -680,6 +690,9 @@ namespace it
                 all_modifiers.removeAt(_pos);
                 return true;
             }
+
+            if(owner_blob == @null) { Nu::Error("owner_blob was null on attempt to sync"); return false; }
+            if(!IsMine(@owner_blob)) { Nu::Warning("Client/Server that didn't own blob tried altering item"); return false; }
 
             CBitStream params;
             params.write_u16(getID());//ID
@@ -892,15 +905,15 @@ namespace it
         
 
 
-        bool Tick(CControls@ controls) override
+        bool Tick(CControls@ controls, bool in_use = true) override
         {
             if(!basemodistore::Tick(@controls)){ return false; }
+            if(in_use)
+            {
+                DelayLogic(@controls);
 
-            DelayLogic(@controls);
-
-
-            UsingLogic(@controls);
-            
+                UsingLogic(@controls);
+            }
             return true;
         }
 
@@ -1010,6 +1023,7 @@ namespace it
         //11 == presing button, semi auto, but charge_allowance is false.
         //12 == button is pressed but the using_mode doesn't allow firing
         //13 == weapon class intercept for reasons 4 and 7. So it can handle them itself. Basically, tried to shoot, but can't shoot.
+        //14 == currently reloading.
         u8 CanUseOnce(CControls@ controls, bool encore = true)
         {
             if(getUseAfterdelayLeft() != 0.0f)//If use afterdelay is not over
@@ -1087,7 +1101,7 @@ namespace it
 
             if(return_value == 0)//If this was going to return true
             {
-                if(getVF32(MagLeft) == 0.0f)//And there was no ammo left
+                if(getVF32(MagLeft) == 0.0f)//And there was not enough ammo for another shot
                 {
                     return 7;//Nada
                 }
@@ -1331,11 +1345,13 @@ namespace it
         }
 
 
-        bool Tick(CControls@ controls) override
+        bool Tick(CControls@ controls, bool in_use = true) override
         {
             if(!activatable::Tick(@controls)){ return false; }
-
-            ShootingLogic();
+            if(in_use)
+            {
+                ShootingLogic();
+            }
             return true;
         }
 
@@ -1658,7 +1674,7 @@ namespace it
         }
 
 
-        bool Tick(CControls@ controls) override
+        bool Tick(CControls@ controls, bool in_use = true) override
         {
             if(!item::Tick(@controls)){ return false; }
 
@@ -1846,14 +1862,15 @@ namespace it
         }
 
 
-        bool Tick(CControls@ controls) override
+        bool Tick(CControls@ controls, bool in_use = true) override
         {
             if(!itemaim::Tick(@controls)){ return false; }
+            if(in_use)
+            {
+                ProjectileLogic();
 
-            ProjectileLogic();
-
-            ReloadLogic(@controls);
-
+                ReloadLogic(@controls);
+            }
             return true;
         }
 
@@ -1930,7 +1947,7 @@ namespace it
 
         void ProjectileOnce()
         {
-            print("projectile!");
+            //print("projectile!");
 
             setVF32(ProjectileAfterdelayLeft, projectile_afterdelay[CurrentValue]);
             setVF32(QueuedProjectiles, getVF32(QueuedProjectiles) - 1.0f);//Remove projectile
@@ -1938,7 +1955,7 @@ namespace it
             f32 aim_direction = getVF32(LastShotDirection) 
             + Nu::getRandomF32(random_projectile_spread[CurrentValue] * -0.5, (random_projectile_spread[CurrentValue] * 0.5f));
 
-
+            PlaySoundAll(owner_blob, projectile_sfx, 1, 1);
         }
 
         void DelayLogic(CControls@ controls) override
@@ -2052,12 +2069,16 @@ namespace it
         }
 
 
-        /*u8 CanTrigger(CControls@ controls) override
+        u8 CanTrigger(CControls@ controls) override
         {
             u8 return_value = itemaim::CanTrigger(@controls);
-            if(return_value == 4 || return_value == 7)//If this was going to return true
+            //if(return_value == 4 || return_value == 7)//If this was going to return true
+            //{
+            //    return_value = 13;
+            //}
+            if(getVF32(ReloadTimeLeft) != 0)
             {
-                return_value = 13;
+                return_value = 14;
             }
             return return_value;
         }
@@ -2066,13 +2087,17 @@ namespace it
         {
             u8 can_use_reason = itemaim::UsingLogic(@controls);
 
-            if(can_use_reason == 13)//If intercept reason, I.E out of ammo but tried using.
+            //if(can_use_reason == 13)//If intercept reason, I.E out of ammo but tried using.
+            //{
+            //    UseOnceReduction(false);//act like this was used, but don't use ammo or "use".
+            //}
+            if(can_use_reason == 14)//Currently reloading
             {
-                UseOnceReduction(false);//act like this was used, but don't use ammo or "use".
+
             }
 
             return can_use_reason;
-        }*/
+        }
 
         /*
         private float[] unequip_time = array<float>(2, 0.0f);//Ticks taken to unequip a weapon
@@ -2174,6 +2199,35 @@ namespace it
             //SFX
         //
         //PROJECTILES
+
+        bool Serialize(CBitStream@ bs, bool include_sfx = true) override
+        {
+            if(!itemaim::Serialize(@bs, include_sfx)) { return false; }
+
+            if(include_sfx)
+            {
+                bs.write_string(reload_sfx);
+                bs.write_string(empty_max_ammo_sfx);
+                bs.write_string(equip_weapon_sfx);
+                bs.write_string(projectile_sfx);
+            }
+            return true;
+        }
+
+        bool Deserialize(CBitStream@ bs, bool &out include_sfx = void) override
+        {
+            if(!itemaim::Deserialize(@bs, include_sfx)) { return false; }
+
+            if(include_sfx)
+            {
+                if(!bs.saferead_string(reload_sfx)) { Nu::Error("Failed to deserialize reload_sfx"); return false; }
+                if(!bs.saferead_string(empty_max_ammo_sfx)) { Nu::Error("Failed to deserialize empty_max_ammo_sfx"); return false; }
+                if(!bs.saferead_string(equip_weapon_sfx)) { Nu::Error("Failed to deserialize equip_weapon_sfx"); return false; }
+                if(!bs.saferead_string(projectile_sfx)) { Nu::Error("Failed to deserialize projectile_sfx"); return false; }
+            }
+            return true;
+        }
+
 
         //SFX
         //

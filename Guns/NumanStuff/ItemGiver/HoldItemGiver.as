@@ -47,7 +47,7 @@ void addEquipment(CBlob@ this, CBlob@ attached, it::IModiStore@ to_add, u8 equip
 {
     //Get the equipment of the attached
     array<it::IModiStore@>@ equipment;
-    if(!attached.get("equipment", @equipment)) { Nu::Error("equipment array was null"); return; }
+    if(!attached.get("equipment", @equipment)) { Nu::Error("equipment array was null. This blob might not support equipment/items/weapons."); return; }
 
     if(equipment[equip_slot] != @null)//Equipment slot of the attached already taken?
     {
