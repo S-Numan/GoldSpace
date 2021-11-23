@@ -88,7 +88,7 @@ namespace it
         DamageTypeCount
     }
 
-    interface IModiStore
+    shared interface IModiStore
     {
         void Init(u16 _initial_item);
         void Init(u16 _initial_item, CBlob@ _blob);

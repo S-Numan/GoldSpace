@@ -2,6 +2,8 @@
 
 #include "WeaponCommon.as";
 #include "NuLib.as";
+#include "AlterItemGui.as";
+#include "ModiVars.as";
 
 
 void onInit(CBlob@ this)
@@ -34,12 +36,26 @@ void onTick(CBlob@ this)
 
     u16 i;
 
+    u8 current_equip = this.get_u8("current_equip");
+    if(current_equip >= equipment.size()) { Nu::Error("current_equip went past equipment size."); return; }
+
     for(i = 0; i < equipment.size(); i++)
     {
+        bool cur_equip;
+        if(i == current_equip) { cur_equip = true; }
+        else { cur_equip = false; }
         if(equipment[i] == @null) { continue; }
-        equipment[i].Tick(@controls);
+        equipment[i].Tick(@controls, cur_equip);
     }
 
+    if(controls.isKeyPressed(KEY_LCONTROL) && controls.isKeyJustPressed(KEY_KEY_X))
+    {
+        print("current_equip = " + current_equip + " item id = " + equipment[current_equip].getID());
+        equipment[current_equip].getVF32();
+        equipment[current_equip].getBoolArray();
+        equipment[current_equip].getF32Array();
+        AlterItem::CreateAlterMenu(@equipment[current_equip].getF32Array());
+    }
 
 
     //print("charge = " + example_thing.getCurrentCharge());

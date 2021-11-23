@@ -66,7 +66,7 @@ u16 getModiVarPos(array<Modif32@>@ modi_array, int name_hash)
     return Nu::u16_max();
 }
 
-interface IModifier
+shared interface IModifier
 {
     void Init(array<Modif32@>@ _modi_array);
     string getName();
@@ -141,7 +141,17 @@ class DefaultModifier : IModifier
 
     void ActiveTick(bool in_use = true)//Called every tick
     {
+        //TODO . addModifier that has conditions. Such as "do x when x value is ...". 
+        //On second thought, that might be too annoying to implement. Just somehow streamline turning a addModifier on and off.
+        //Maybe remove PassiveTick(), and simply modify variables yourself when they're added? No ticking it on. It gets on when you create it. Only thing you have to do it tick it off. I.E AntiPassiveTick(); Maybe rename that to onRemove().
         
+        //Maybe store a bool for each setting value to confirm if it was set? then once the condition is false, remove it and set the bool to false? Once condition is true, set bool to true and apply.
+        //^ Hyjacking will work. Make an "active" array. Use how as the bool. 0 is false, 1 is true. Eh, good enough.
+        //Maybe alter ModiVars.as to somehow store an id for where each modification was done to it? (too bulky. would rather not)
+
+        
+        //For example, when MagLeft is equal to or less than 1, increase damage by 50%.
+        //It would be preferable to have the damage increase dependent on the mag size. So weapons with only two rounds don't get much of a boost.
     }
 
     void PassiveTick()//Called onInit
