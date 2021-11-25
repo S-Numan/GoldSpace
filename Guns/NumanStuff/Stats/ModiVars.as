@@ -74,7 +74,7 @@ enum WhatValue
 //parameter 1 is name_hash
 funcdef void BASE_VALUE_CHANGED(int);
 
-class ModiBase
+/*class ModiBase
 {
     private string name;
     string getName()
@@ -100,20 +100,76 @@ class ModiBase
     {
         @base_value_changed_func = @_func;//Function called when the base value changes
     }
+}*/
+
+shared interface IModiF32
+{
+    string getName();
+    void setName(string _value);
+    int getNameHash();
+
+    void setSyncBaseValue(bool value);
+    void setBaseValueChangedFunc(BASE_VALUE_CHANGED@ _func);
+
+    f32 get_opIndex(int idx);
+    void set_opIndex(int idx, f32 _value);
+
+    u16 addMultMult(f32 _value);
+    bool removeMultMult(u16 _id);
+    void ResizeMultMult(u16 _value);
+
+    bool Serialize(CBitStream@ bs);
+    bool Deserialize(CBitStream@ bs);
 }
 
-class Modif32 : ModiBase
+class Modif32 : IModiF32
 {
+    //Base
+    private string name;
+    string getName()
+    {
+        return name;
+    }
+    //protected          - why kag, not letting me set this to protected
+    void setName(string _value)
+    {
+        if(_value.size() == 0) { Nu::Error("string was empty"); }
+        name = _value;
+        name_hash = name.getHash();
+    }
+
+    private int name_hash;
+    int getNameHash()
+    {
+        return name_hash;
+    }
+
+    void setSyncBaseValue(bool value)
+    {
+        sync_base_value = value;
+    }
+    bool sync_base_value;
+
+    private BASE_VALUE_CHANGED@ base_value_changed_func;
+    void setBaseValueChangedFunc(BASE_VALUE_CHANGED@ _func)
+    {
+        @base_value_changed_func = @_func;//Function called when the base value changes
+    }
+    //Base
+
     Modif32(string _name)
     {
         setName(_name);
         value = array<f32>(ValueCount);
+    
+        sync_base_value = true;
     }
     Modif32(string _name, f32 default_value)
     {
         setName(_name);//Name for this variable
 
-
+        sync_base_value = true;
+        
         //Initialization of the variable
         value = array<f32>(ValueCount);
         
@@ -159,14 +215,14 @@ class Modif32 : ModiBase
     {
         value[BaseValue] = _value;
         
-        if(@base_value_changed_func != @null)
+        if(@base_value_changed_func != @null && sync_base_value)
         {
             base_value_changed_func(name_hash);
         }
     }
 
 
-    f32 get_opIndex(int idx) const
+    f32 get_opIndex(int idx)
     {
         if(idx == CurrentValue)//If the index is the current value
         {
@@ -175,7 +231,7 @@ class Modif32 : ModiBase
         //Otherwise
         return value[idx];//Return the desired value
     }
-    void set_opIndex(int idx, f32 _value) 
+    void set_opIndex(int idx, f32 _value)
     {
         if(idx == CurrentValue)//If the index is the current value
         {
@@ -258,13 +314,62 @@ class Modif32 : ModiBase
     }
 }
 
-
-class Modibool : ModiBase
+shared interface IModiBool
 {
+    string getName();
+    void setName(string _value);
+    int getNameHash();
+
+    void setSyncBaseValue(bool value);
+    void setBaseValueChangedFunc(BASE_VALUE_CHANGED@ _func);
+
+    bool get_opIndex(int idx);
+    void set_opIndex(int idx, bool _value);
+    
+    bool Serialize(CBitStream@ bs);
+    bool Deserialize(CBitStream@ bs);
+}
+
+class Modibool : IModiBool
+{
+    //Base
+    private string name;
+    string getName()
+    {
+        return name;
+    }
+    //protected          - why kag, not letting me set this to protected
+    void setName(string _value)
+    {
+        if(_value.size() == 0) { Nu::Error("string was empty"); }
+        name = _value;
+        name_hash = name.getHash();
+    }
+
+    private int name_hash;
+    int getNameHash()
+    {
+        return name_hash;
+    }
+
+    bool sync_base_value;
+    void setSyncBaseValue(bool value)
+    {
+        sync_base_value = value;
+    }
+
+    private BASE_VALUE_CHANGED@ base_value_changed_func;
+    void setBaseValueChangedFunc(BASE_VALUE_CHANGED@ _func)
+    {
+        @base_value_changed_func = @_func;//Function called when the base value changes
+    }
+    //Base
+    
     Modibool(string _name)
     {
         setName(_name);//Name for this variable
 
+        sync_base_value = true;
 
         //Initialization of the variable
         value = array<bool>(2);
@@ -273,7 +378,8 @@ class Modibool : ModiBase
     {
         setName(_name);//Name for this variable
 
-
+        sync_base_value = true;
+        
         //Initialization of the variable
         value = array<bool>(2);
         
@@ -303,7 +409,7 @@ class Modibool : ModiBase
         {
             value[BaseValue] = _value;
             
-            if(@base_value_changed_func != @null)
+            if(@base_value_changed_func != @null && sync_base_value)
             {
                 base_value_changed_func(name_hash);
             }
@@ -316,7 +422,7 @@ class Modibool : ModiBase
 
 
 
-    bool get_opIndex(int idx) const
+    bool get_opIndex(int idx)
     {
         if(idx == CurrentValue)//If the index is the current value
         {

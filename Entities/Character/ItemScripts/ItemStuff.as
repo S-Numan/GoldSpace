@@ -50,10 +50,7 @@ void onTick(CBlob@ this)
 
     if(controls.isKeyPressed(KEY_LCONTROL) && controls.isKeyJustPressed(KEY_KEY_X))
     {
-        print("current_equip = " + current_equip + " item id = " + equipment[current_equip].getID());
-        equipment[current_equip].getVF32();
-        equipment[current_equip].getBoolArray();
-        equipment[current_equip].getF32Array();
+        if(equipment[current_equip] == @null) { Nu::Warning("Tried to AlterItem a non existant item at " + current_equip + " with array size of equipment being " + equipment.size()); return; }
         AlterItem::CreateAlterMenu(@equipment[current_equip].getF32Array());
     }
 
@@ -90,7 +87,10 @@ void onTick(CBlob@ this)
 
 
 
-
+void onDie(CBlob@ this)
+{
+    AlterItem::RemoveAlterMenu();
+}
 
 
 void onAttach(CBlob@ this, CBlob@ attached, AttachmentPoint@ attachedPoint)

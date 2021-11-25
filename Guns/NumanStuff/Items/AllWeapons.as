@@ -1,4 +1,5 @@
 #include "WeaponCommon.as";
+#include "ModiVars.as";
 
 /*it::IModiStore@ CreateModiStore(u8 class_type)
 {
@@ -85,7 +86,7 @@ it::IModiStore@ CreateItem(u16 created_item, CBlob@ owner, bool include_sfx = tr
     }
 
     
-    array<Modif32@>@ f32_array = @item.getF32Array();
+    array<IModiF32@>@ f32_array = @item.getF32Array();
 
     if(item.hasVF32(it::MagLeft)) { item.setVF32(it::MagLeft, f32_array[item.getModif32Point("mag_size")][CurrentValue], false); }//False means don't sync
     if(item.hasVF32(it::MaxAmmoLeft)) { item.setVF32(it::MaxAmmoLeft, f32_array[item.getModif32Point("max_ammo")][CurrentValue], false); }

@@ -109,8 +109,8 @@ namespace it
         bool Serialize(CBitStream@ bs, bool include_sfx = true);
         bool Deserialize(CBitStream@ bs, bool &out include_sfx = void);
 
-        array<Modif32@>@ getF32Array();
-        array<Modibool@>@ getBoolArray();
+        array<IModiF32@>@ getF32Array();
+        array<IModiBool@>@ getBoolArray();
         array<IModifier@>@ getAllModifiers();
         array<f32>@  getVF32();
         f32 getVF32(u8 pos);
@@ -192,11 +192,11 @@ namespace it
 
             equip_slot = 0;
 
-            @f32_array = @array<Modif32@>();
+            @f32_array = @array<IModiF32@>();
             @vf32 = @array<f32>();
             @vf32sync = @array<bool>();
 
-            @bool_array = @array<Modibool@>();
+            @bool_array = @array<IModiBool@>();
             @vbool = @array<bool>();
             @vboolsync = @array<bool>();
 
@@ -351,7 +351,7 @@ namespace it
             {
                 u16 initial_modifier;
                 if(!bs.saferead_u16(initial_modifier)) { Nu::Error("Failed to deserialize initial_modifier on " + i); return false; }
-                @all_modifiers[i] = CreateModifier(initial_modifier, f32_array);
+                @all_modifiers[i] = @CreateModifier(initial_modifier, f32_array);
             }
             for(i = 0; i < vf32.size(); i++)
             {
@@ -411,14 +411,14 @@ namespace it
 
         SColor debug_color;
 
-        array<Modif32@>@ f32_array;//Stores Modif32 .. variables? Don't often change. Things like, "max_ammo"
-        array<Modif32@>@ getF32Array()
+        array<IModiF32@>@ f32_array;//Stores IModiF32 .. variables? Don't often change. Things like, "max_ammo"
+        array<IModiF32@>@ getF32Array()
         {
             return @f32_array;
         }
 
-        array<Modibool@>@ bool_array;
-        array<Modibool@>@ getBoolArray()
+        array<IModiBool@>@ bool_array;
+        array<IModiBool@>@ getBoolArray()
         {
             return @bool_array;
         }
@@ -1178,12 +1178,12 @@ namespace it
             return true;
         }
 
-        Modif32@ using_mode = Modif32("using_mode", 0);//0 means semi-auto. 1 means you can hold the button to keep automatically shooting when able (full auto). 2 means on_release, this only works when you release the button.
+        IModiF32@ using_mode = Modif32("using_mode", 0);//0 means semi-auto. 1 means you can hold the button to keep automatically shooting when able (full auto). 2 means on_release, this only works when you release the button.
 
 
-        Modibool@ remove_on_empty = Modibool("remove_on_empty", true);//Kills this when no more use uses are left
+        IModiBool@ remove_on_empty = Modibool("remove_on_empty", true);//Kills this when no more use uses are left
 
-        Modif32@ use_afterdelay = Modif32("use_afterdelay", 0.0f);//basically rate of fire. How frequently can this be used? This many ticks before it can be reused.
+        IModiF32@ use_afterdelay = Modif32("use_afterdelay", 0.0f);//basically rate of fire. How frequently can this be used? This many ticks before it can be reused.
 
         f32 getUseAfterdelayLeft()
         {
@@ -1194,18 +1194,18 @@ namespace it
             setVF32(UseAfterdelayLeft, value);
         }
 
-        Modif32@ mag_size = Modif32("mag_size", 1.0f);//Max amount of times this can be used
+        IModiF32@ mag_size = Modif32("mag_size", 1.0f);//Max amount of times this can be used
         
 
         
         
-        Modif32@ knockback_per_use = Modif32("knockback_per_use", 0.0f);//pushes you around when activated, specifically it pushes you away from the direction your mouse is aiming.
+        IModiF32@ knockback_per_use = Modif32("knockback_per_use", 0.0f);//pushes you around when activated, specifically it pushes you away from the direction your mouse is aiming.
 
 
 
         //Charging
     
-            Modif32@ charge_up_time = Modif32("charge_up_time", 0.0f);//Time the player must be holding the use button to activate a use of this. Think spinup time for a minigun.
+            IModiF32@ charge_up_time = Modif32("charge_up_time", 0.0f);//Time the player must be holding the use button to activate a use of this. Think spinup time for a minigun.
 
             //Value that stores the current charge
             f32 getCurrentCharge()
@@ -1228,11 +1228,11 @@ namespace it
             }
 
 
-            Modif32@ charge_down_per_tick = Modif32("charge_down_per_tick", 1.0f);//Amount the float above charge_up_time is subtracted by every tick. Does not take effect while charging up.
+            IModiF32@ charge_down_per_tick = Modif32("charge_down_per_tick", 1.0f);//Amount the float above charge_up_time is subtracted by every tick. Does not take effect while charging up.
 
-            Modif32@ charge_down_per_use = Modif32("charge_down_per_use", 99999.0f);//How much charge goes down per tick. Charge does not go below 0.
+            IModiF32@ charge_down_per_use = Modif32("charge_down_per_use", 99999.0f);//How much charge goes down per tick. Charge does not go below 0.
 
-            Modibool@ allow_non_charged_shots = Modibool("allow_non_charged_shots", false);//If this is false, this cannot shoot until current_charge is equal to charge_up_time. If this is true, this can shoot independently of how much charge this has.
+            IModiBool@ allow_non_charged_shots = Modibool("allow_non_charged_shots", false);//If this is false, this cannot shoot until current_charge is equal to charge_up_time. If this is true, this can shoot independently of how much charge this has.
 
 
             //Charge uses can only happen when this is true. This is turned false after a charge use, and is only turned true after the button is triggered again.
@@ -1245,7 +1245,7 @@ namespace it
                 setVBool(ChargeAllowance, value);
             }
 
-            Modibool@ charge_during_use = Modibool("charge_during_use", false);//If this is true, this continues charging even when in use and not being able to use again. If this is false, this retains it's charge after using, but does not go higher or lower. 
+            IModiBool@ charge_during_use = Modibool("charge_during_use", false);//If this is true, this continues charging even when in use and not being able to use again. If this is false, this retains it's charge after using, but does not go higher or lower. 
 
         //Charging
 
@@ -1530,18 +1530,18 @@ namespace it
 
 
 
-        Modif32@ morium_cost = Modif32("morium_cost", 0.0f);//Morium cost per use when creating ammo for the activatable. a cost below 0 makes this activatable not rechargable
+        IModiF32@ morium_cost = Modif32("morium_cost", 0.0f);//Morium cost per use when creating ammo for the activatable. a cost below 0 makes this activatable not rechargable
 
-        Modif32@ rarity = Modif32("rarity", Undefined);//Should be an enum.
+        IModiF32@ rarity = Modif32("rarity", Undefined);//Should be an enum.
 
 
         //SHOTS
         //
             //EFFECTS
             //
-                Modif32@ ammo_per_shot = Modif32("ammo_per_shot", 1.0f);//Uses taken out per shot
+                IModiF32@ ammo_per_shot = Modif32("ammo_per_shot", 1.0f);//Uses taken out per shot
 
-                Modif32@ knockback_per_shot = Modif32("knockback_per_shot", 0.0f);//Amount the user is knocked back upon a shot going off.
+                IModiF32@ knockback_per_shot = Modif32("knockback_per_shot", 0.0f);//Amount the user is knocked back upon a shot going off.
             //
             //EFFECTS
 
@@ -1550,15 +1550,15 @@ namespace it
             //
                 //vf32[QueuedShots]//Value that holds shots waiting to be activated. Think burst fire weapons. You cannot fire(use) when there are still shots queued up.
 
-                Modif32@ shots_per_use = Modif32("shots_per_use", 1.0f);//Amount of shots per use.
+                IModiF32@ shots_per_use = Modif32("shots_per_use", 1.0f);//Amount of shots per use.
                 
-                Modibool@ use_with_queued_shots = Modibool("use_with_queued_shots", false);//When this is false, this cannot be used again until there are no more queued shots left. When this is true, you can continue using this and adding more queued shots.
+                IModiBool@ use_with_queued_shots = Modibool("use_with_queued_shots", false);//When this is false, this cannot be used again until there are no more queued shots left. When this is true, you can continue using this and adding more queued shots.
 
-                Modibool@ use_with_shot_afterdelay = Modibool("use_with_shot_afterdelay", false);//When this is false, you cannot use the weapon when shot afterdelay is not 0. When this is true, you can queue up more shots with less care.
+                IModiBool@ use_with_shot_afterdelay = Modibool("use_with_shot_afterdelay", false);//When this is false, you cannot use the weapon when shot afterdelay is not 0. When this is true, you can queue up more shots with less care.
 
-                Modibool@ no_ammo_no_shots = Modibool("no_ammo_no_shots", true);//If this is true, using this wont setup queued shots if the amount of queued up shots left would pass mag_left. If this is false, it will glady setup 3 shots even if there is only 2 ammo left.
+                IModiBool@ no_ammo_no_shots = Modibool("no_ammo_no_shots", true);//If this is true, using this wont setup queued shots if the amount of queued up shots left would pass mag_left. If this is false, it will glady setup 3 shots even if there is only 2 ammo left.
                 
-                Modif32@ shot_afterdelay = Modif32("shot_afterdelay", 0.0f);//Only relevant if the stat above is more than 0
+                IModiF32@ shot_afterdelay = Modif32("shot_afterdelay", 0.0f);//Only relevant if the stat above is more than 0
                 //vf32[ShotAfterdelayLeft];
             //
             //AMOUNT
@@ -1741,16 +1741,16 @@ namespace it
             //vf32[CurrentSpread];
 
             //Deviation
-            Modif32@ random_shot_spread = Modif32("random_shot_spread", 0.0f);//Value that changes direction of where the shot is aimed by picking a value between 0 and this variable. Half chance to invert the value. Applies this to the direction the shot would be going.
+            IModiF32@ random_shot_spread = Modif32("random_shot_spread", 0.0f);//Value that changes direction of where the shot is aimed by picking a value between 0 and this variable. Half chance to invert the value. Applies this to the direction the shot would be going.
 
-            Modif32@ min_shot_spread = Modif32("min_shot_spread", 0.0f);//Min deviation from aimed point for shot.
-            Modif32@ max_shot_spread = Modif32("max_shot_spread", 9999.0f);//Max deviation from aimed point for shot.
+            IModiF32@ min_shot_spread = Modif32("min_shot_spread", 0.0f);//Min deviation from aimed point for shot.
+            IModiF32@ max_shot_spread = Modif32("max_shot_spread", 9999.0f);//Max deviation from aimed point for shot.
 
             //Recoil
-            Modif32@ spread_gain_per_shot = Modif32("spread_gain_per_shot", 0.0f);//(not per projectile. Per SHOT) (Otherwise known as recoil) (capped to max_shot_spread)
+            IModiF32@ spread_gain_per_shot = Modif32("spread_gain_per_shot", 0.0f);//(not per projectile. Per SHOT) (Otherwise known as recoil) (capped to max_shot_spread)
 
             //Recoil control
-            Modif32@ spread_loss_per_tick = Modif32("spread_loss_per_tick", 0.0f);// (capped to min_projectile_spread)
+            IModiF32@ spread_loss_per_tick = Modif32("spread_loss_per_tick", 0.0f);// (capped to min_projectile_spread)
 
             //Multiplier applied to each value when crouching? Nah
         //
@@ -2126,17 +2126,17 @@ namespace it
         //RELOADING
         //
 
-        Modif32@ max_ammo = Modif32("max_ammo", 0.0f);//when mag_size is 0.0f, that means there is no mag, and ammo is directly pulled from max_ammo.
+        IModiF32@ max_ammo = Modif32("max_ammo", 0.0f);//when mag_size is 0.0f, that means there is no mag, and ammo is directly pulled from max_ammo.
 
-        Modif32@ ammo_to_mag_per_reload = Modif32("ammo_to_mag_per_reload", Nu::s32_max());//Amount of ammo added to the mag per reload.
+        IModiF32@ ammo_to_mag_per_reload = Modif32("ammo_to_mag_per_reload", Nu::s32_max());//Amount of ammo added to the mag per reload.
 
         //Weapon will continue to reload until clip is full, unless the weapon is used.
 
-            Modif32@ reload_time = Modif32("reload_time", 0.0f);//Time taken to reload a mag upon pressing the reload button. (in ticks(float ticks, don't think too hard about it.))
+            IModiF32@ reload_time = Modif32("reload_time", 0.0f);//Time taken to reload a mag upon pressing the reload button. (in ticks(float ticks, don't think too hard about it.))
 
             //getVF32(ReloadTimeLeft);//If this is above 0, the weapon is still reloading.
 
-            Modibool@ auto_reload = Modibool("auto_reload", false);//If this is true, the weapon will automatically reload upon reaching a clip size of 0.
+            IModiBool@ auto_reload = Modibool("auto_reload", false);//If this is true, the weapon will automatically reload upon reaching a clip size of 0.
         
         //
         //RELOADING
@@ -2148,15 +2148,15 @@ namespace it
 
             //getVF32(Heat)//Current heat
 
-            Modif32@ max_heat = Modif32("max_heat", 0.0f);//Upon the value "heat" going above this value, the weapon is overheating.
+            IModiF32@ max_heat = Modif32("max_heat", 0.0f);//Upon the value "heat" going above this value, the weapon is overheating.
 
             f32 overheating_shotdelay_mult = 2.0f;//The multiplier applied to "shot_afterdelay" when this weapon is over max heat. By default halves firerate.
 
-            Modif32@ heat_loss_per_tick = Modif32("heat_loss_per_tick", 0.0f);
+            IModiF32@ heat_loss_per_tick = Modif32("heat_loss_per_tick", 0.0f);
 
-            Modif32@ heat_gain_per_shot = Modif32("heat_gain_per_shot", 0.0f);
+            IModiF32@ heat_gain_per_shot = Modif32("heat_gain_per_shot", 0.0f);
 
-            Modif32@ damage_on_overheat = Modif32("damage_on_overheat", 0.0f);//How much the user is damaged when the gun overheats.
+            IModiF32@ damage_on_overheat = Modif32("damage_on_overheat", 0.0f);//How much the user is damaged when the gun overheats.
         
         //
         //Heat
@@ -2165,7 +2165,7 @@ namespace it
         //
             //EFFECTS
             //
-                Modibool@ projectile_host_inertia = Modibool("projectile_host_inertia", true);//If this is true, the velocity of the host is applied to the projectile on its creation.
+                IModiBool@ projectile_host_inertia = Modibool("projectile_host_inertia", true);//If this is true, the velocity of the host is applied to the projectile on its creation.
 
                 //array<GunProjectile@> projectile;//By default the gun shoot's the 0'th projectile in this array.
             //
@@ -2174,19 +2174,19 @@ namespace it
             //AMOUNT
             //
                 //getVF32(QueuedProjectiles)//Value that holds projectiles waiting to escape from the gun. Think shotgun like weapons.
-                Modif32@ projectiles_per_shot = Modif32("projectiles_per_shot", 1.0f);//Amount of projectiles per shot.
-                Modif32@ projectile_afterdelay = Modif32("projectile_afterdelay", 0.0f);//Delay in ticks between each projectile
+                IModiF32@ projectiles_per_shot = Modif32("projectiles_per_shot", 1.0f);//Amount of projectiles per shot.
+                IModiF32@ projectile_afterdelay = Modif32("projectile_afterdelay", 0.0f);//Delay in ticks between each projectile
                 //getVF32(ProjectileAfterdelayLeft)//projectile_afterdelay_left;
             //
             //AMOUNT
 
             //AIMING
             //
-                Modif32@ random_projectile_spread = Modif32("random_projectile_spread", 0.0f);//After random_shot_spread is applied, this applies to every projectile seperately. Otherwise known as deviation.
+                IModiF32@ random_projectile_spread = Modif32("random_projectile_spread", 0.0f);//After random_shot_spread is applied, this applies to every projectile seperately. Otherwise known as deviation.
                 //If random_shot_spread changes the aimed direction for every projectile, this changes the aim direction for each projectile individually.
 
                 //Difficult to code
-                //Modif32@ same_tick_forced_spread = Modif32("same_tick_forced_spread", 0.0f);//When two projectiles are shot in the same tick, this forces each projectile to by default aim x amount apart from each other.
+                //IModiF32@ same_tick_forced_spread = Modif32("same_tick_forced_spread", 0.0f);//When two projectiles are shot in the same tick, this forces each projectile to by default aim x amount apart from each other.
                 //With three projectiles and a distance of 3.0f, the middle projectile will shot like normal, but the other two projectiles will be equally apart like a shotgun but without randomness.
                 //random_projectile_spread is applied after this.
             //
@@ -2561,14 +2561,20 @@ namespace it
             f32 value;
             if(!params.saferead_f32(value)) { Nu::Error("bleh2"); return true;}
 
-            equipment[es].getF32Array()[array_pos][BaseValue] = value;
+            array<IModiF32@>@ f32_array = @equipment[es].getF32Array();
+            f32_array[array_pos].setSyncBaseValue(false);
+            f32_array[array_pos][BaseValue] = value;
+            f32_array[array_pos].setSyncBaseValue(true);
         }
         else if(any_true[3])//syncboolbase
         {
             bool value;
             if(!params.saferead_bool(value)) { Nu::Error("bleh3"); return true;}
 
-            equipment[es].getBoolArray()[array_pos][BaseValue] = value;
+            array<IModiBool@>@ bool_array = @equipment[es].getBoolArray();
+            bool_array[array_pos].setSyncBaseValue(false);
+            bool_array[array_pos][BaseValue] = value;
+            bool_array[array_pos].setSyncBaseValue(true);
         }
         else if(any_true[4])//add_modifier
         {

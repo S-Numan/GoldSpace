@@ -53,7 +53,7 @@ class ModiHow//For modifying ModiVars
     u8 how;
 }
 
-u16 getModiVarPos(array<Modif32@>@ modi_array, int name_hash)
+u16 getModiVarPos(array<IModiF32@>@ modi_array, int name_hash)
 {
     for(u16 i = 0; i < modi_array.size(); i++)
     {
@@ -68,7 +68,7 @@ u16 getModiVarPos(array<Modif32@>@ modi_array, int name_hash)
 
 shared interface IModifier
 {
-    void Init(array<Modif32@>@ _modi_array);
+    void Init(array<IModiF32@>@ _modi_array);
     string getName();
     int getNameHash();
     void setName(string _name);
@@ -83,7 +83,7 @@ shared interface IModifier
 
 class DefaultModifier : IModifier
 {    
-    void Init(array<Modif32@>@ _modi_array)
+    void Init(array<IModiF32@>@ _modi_array)
     {
         @modi_array = @_modi_array;
 
@@ -109,7 +109,7 @@ class DefaultModifier : IModifier
     }
 
 
-    array<Modif32@>@ modi_array;
+    array<IModiF32@>@ modi_array;
 
     void setName(string _name)
     {

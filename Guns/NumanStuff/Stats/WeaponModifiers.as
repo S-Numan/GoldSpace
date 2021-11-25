@@ -12,7 +12,7 @@ namespace mod
     }
 }
 
-IModifier@ CreateModifier(u16 created_modifier, array<Modif32@>@ modi_array)
+IModifier@ CreateModifier(u16 created_modifier, array<IModiF32@>@ modi_array)
 {
     switch (created_modifier)
     {
@@ -36,7 +36,7 @@ IModifier@ CreateModifier(u16 created_modifier, array<Modif32@>@ modi_array)
 
 class ExampleModifier : DefaultModifier
 {
-    ExampleModifier(array<Modif32@>@ modi_array)
+    ExampleModifier(array<IModiF32@>@ modi_array)
     {
         Init(@modi_array);
         
@@ -81,7 +81,7 @@ class ExampleModifier : DefaultModifier
 
 class ExampleModifier2 : DefaultModifier
 {
-    ExampleModifier2(array<Modif32@>@ modi_array)
+    ExampleModifier2(array<IModiF32@>@ modi_array)
     {
         Init(@modi_array);
 
@@ -98,7 +98,7 @@ class ExampleModifier2 : DefaultModifier
 
 class SUPPRESSINGFIRE : DefaultModifier//SUPRESSING FIRE!: Much larger clip size, larger max ammo, longer reload time, cheaper ammo, less heat, more recoil, less projectile damage.
 {
-    SUPPRESSINGFIRE(array<Modif32@>@ modi_array)
+    SUPPRESSINGFIRE(array<IModiF32@>@ modi_array)
     {
         Init(@modi_array);
 
