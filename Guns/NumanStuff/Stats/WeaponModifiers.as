@@ -116,3 +116,25 @@ class SUPPRESSINGFIRE : DefaultModifier//SUPRESSING FIRE!: Much larger clip size
         addModifier("shot_afterdelay", 0.8f, MultMult);//somewhere around 1.2 the firerate
     }
 }
+
+class DamageBasedOnCharge : DefaultModifier
+{
+    DamageBasedOnCharge(array<IModiF32@>@ modi_array)
+    {
+        Init(@modi_array);
+        SetupValues(1.0f, 5.0f);
+    }
+    DamageBasedOnCharge(array<IModiF32@>@ modi_array, f32 zero_charge_per, f32 max_charge_per)
+    {
+        Init(@modi_array);
+        SetupValues(zero_charge_per, max_charge_per);
+    }
+
+    //1: percentage on zero charge
+    //2: percentage on max charge (charge_up_time?)
+    void SetupValues(f32 zero_charge_per, f32 max_charge_per)
+    {
+        
+
+    }
+}

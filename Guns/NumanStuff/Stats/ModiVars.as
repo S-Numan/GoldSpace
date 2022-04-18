@@ -116,6 +116,7 @@ shared interface IModiF32
 
     u16 addMultMult(f32 _value);
     bool removeMultMult(u16 _id);
+    bool editMultMult(u16 _id, f32 _value);
     void ResizeMultMult(u16 _value);
 
     bool Serialize(CBitStream@ bs);
@@ -273,6 +274,19 @@ class Modif32 : IModiF32
             {
                 multmultvalue.removeAt(i);
                 multmultid.removeAt(i);
+                success = true;
+            }
+        }
+        return success;
+    }
+    bool editMultMult(u16 _id, f32 _value)
+    {
+        bool success = false;
+        for(u16 i = 0; i < multmultid.size(); i++)
+        {
+            if(multmultid[i] == _id)
+            {
+                multmultvalue[i] = _value;
                 success = true;
             }
         }
