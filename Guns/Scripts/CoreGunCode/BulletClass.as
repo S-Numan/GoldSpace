@@ -15,6 +15,7 @@
 #include "BulletCase.as";
 #include "Recoil.as";
 #include "BulletParticle.as";
+#include "WeaponCommon.as";
 
 const SColor trueWhite = SColor(255,255,255,255);
 Driver@ PDriver = getDriver();
@@ -46,23 +47,26 @@ class BulletObj
 	string FleshHitSound;
 	string ObjectHitSound;
 
-	s8 TimeLeft;
+	u16 TimeLeft;
 
 	bool FacingLeft;
 
-	
-	BulletObj(CBlob@ humanBlob, CBlob@ gun, f32 angle, Vec2f pos)
+	it::IModiStore@ Equipment;
+
+	BulletObj(CBlob@ humanBlob, CBlob@ gun, it::IModiStore@ _equipment, f32 angle, Vec2f pos)
 	{
+        @Equipment = @_equipment;
+
 		CurrentPos = pos;
 		FacingLeft = humanBlob.isFacingLeft();
-		BulletGrav = gun.get_Vec2f("grav");
-		Damage   = gun.get_f32("damage");
+		BulletGrav = Vec2f(0.0f,0.0f);//Vec2f(0.0f, Equipment.getModif32Point("projectile_gravity"));//gun.get_Vec2f("grav");
+		Damage   = Equipment.getModif32("projectile_damage");//gun.get_f32("damage");
 		TeamNum  = gun.getTeamNum();
-		TimeLeft = gun.get_u8("TTL");
-		KB       = gun.get_Vec2f("KB");
-		Speed    = gun.get_u8("speed");
-		FleshHitSound  = gun.get_string("flesh_hit_sound");
-		ObjectHitSound = gun.get_string("object_hit_sound");
+		TimeLeft = u16(Equipment.getModif32("projectile_lifespan"));//gun.get_u8("TTL");
+		KB       = Vec2f(0,0);//Equipment.getModif32Point("projectile_knockback");//gun.get_Vec2f("KB");//TODO
+		Speed    = u8(Equipment.getModif32("projectile_speed"));//gun.get_u8("speed");
+		FleshHitSound  = "";//gun.get_string("flesh_hit_sound");//TODO
+		ObjectHitSound = "";//gun.get_string("object_hit_sound");//TODO
 		@hoomanShooter = humanBlob;
 		StartingAimPos = angle;
 		OldPos     = CurrentPos;

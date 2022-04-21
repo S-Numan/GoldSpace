@@ -31,8 +31,8 @@
 void onDebugUse(it::IModiStore@ item)
 {
     print("\n\nthis has been used");
-    print("f32_array.size() == " + item.getF32Array().size());
-    print("bool_array.size() == " + item.getBoolArray().size());
+    print("modif32_array.size() == " + item.getModiF32Array().size());
+    print("modibool_array.size() == " + item.getModiBoolArray().size());
     print("all_modifiers.size() == " + item.getAllModifiers().size());
     //item.DebugModiVars(true);
     item.DebugVars();
@@ -41,8 +41,8 @@ void onDebugUse(it::IModiStore@ item)
 void onDebugShot(it::IModiStore@ item, f32 shot_angle)
 {
     print("\n\nthis has been shot");
-    print("f32_array.size() == " + item.getF32Array().size());
-    print("bool_array.size() == " + item.getBoolArray().size());
+    print("modif32_array.size() == " + item.getModiF32Array().size());
+    print("modibool_array.size() == " + item.getModiBoolArray().size());
     print("all_modifiers.size() == " + item.getAllModifiers().size());
     //item.DebugModiVars(true);
     item.DebugVars();
@@ -86,7 +86,7 @@ it::IModiStore@ CreateItem(u16 created_item, CBlob@ owner, bool include_sfx = tr
     }
 
     
-    array<IModiF32@>@ f32_array = @item.getF32Array();
+    array<IModiF32@>@ f32_array = @item.getModiF32Array();
 
     if(item.hasVF32(it::MagLeft)) { item.setVF32(it::MagLeft, f32_array[item.getModif32Point("mag_size")][CurrentValue], false); }//False means don't sync
     if(item.hasVF32(it::MaxAmmoLeft)) { item.setVF32(it::MaxAmmoLeft, f32_array[item.getModif32Point("max_ammo")][CurrentValue], false); }
@@ -159,12 +159,12 @@ it::weapon@ TestWeapon(u16 created_weapon, CBlob@ owner, bool include_sfx, bool 
 
 
 
-        example_thing.random_shot_spread[BaseValue] = 5.0f;
+        example_thing.random_shot_spread[BaseValue] = 20.0f;
 
         example_thing.min_shot_spread[BaseValue] = 2.0f;
         example_thing.max_shot_spread[BaseValue] = 9999.0f;
 
-        example_thing.spread_gain_per_shot[BaseValue] = 30.0f;
+        example_thing.spread_gain_per_shot[BaseValue] = 2.0f;
 
         example_thing.spread_loss_per_tick[BaseValue] = 1.0f;
 
@@ -188,7 +188,7 @@ it::weapon@ TestWeapon(u16 created_weapon, CBlob@ owner, bool include_sfx, bool 
     }
     
 
-    IModifier@ _modi = CreateModifier(mod::SUPPRESSINGFIRE, @example_thing.getF32Array());
+    IModifier@ _modi = CreateModifier(mod::SUPPRESSINGFIRE, @example_thing.getModiF32Array());
     example_thing.addModifier(@_modi, false);//false means don't sync.
 
 

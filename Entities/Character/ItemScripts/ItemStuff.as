@@ -51,7 +51,7 @@ void onTick(CBlob@ this)
     if(controls.isKeyPressed(KEY_LCONTROL) && controls.isKeyJustPressed(KEY_KEY_X))
     {
         if(equipment[current_equip] == @null) { Nu::Warning("Tried to AlterItem a non existant item at " + current_equip + " with array size of equipment being " + equipment.size()); return; }
-        AlterItem::CreateAlterMenu(@equipment[current_equip].getF32Array());
+        AlterItem::CreateAlterMenu(@equipment[current_equip].getModiF32Array());
     }
 
 

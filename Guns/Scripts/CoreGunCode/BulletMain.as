@@ -16,6 +16,7 @@
 #include "BulletTrails.as";
 #include "BulletClass.as";
 #include "BulletCase.as";
+#include "WeaponCommon.as";
 
 // I would use blob.getNetworkID, but without some major changes
 // It would be the same pattern every time
@@ -197,13 +198,18 @@ void onCommand(CRules@ this, u8 cmd, CBitStream @params)
 	if (cmd == FireGunID)
 	{
 		CBlob@ hoomanBlob = getBlobByNetworkID(params.read_netid());
-		CBlob@ gunBlob    = getBlobByNetworkID(params.read_netid());
+		CBlob@ gunBlob    = @hoomanBlob;//getBlobByNetworkID(params.read_netid());
 
 		if (hoomanBlob !is null && gunBlob !is null)
 		{  
 			f32 angle = params.read_f32();
 			const Vec2f pos = params.read_Vec2f();
-			BulletObj@ bullet = BulletObj(hoomanBlob,gunBlob,angle,pos);
+
+            array<it::IModiStore@>@ equipment;
+            if(!gunBlob.get("equipment", @equipment)) { Nu::Error("equipment array was null"); return; }
+            if(equipment[0] == @null) { Nu::Error("Equipment[0] was null"); return; }
+			
+            BulletObj@ bullet = BulletObj(hoomanBlob,gunBlob,@equipment[0],angle,pos);
 			
 			u32 timeSpawnedAt = params.read_u32(); // getGameTime() it spawned at
 			CMap@ map = getMap(); 
@@ -214,11 +220,9 @@ void onCommand(CRules@ this, u8 cmd, CBitStream @params)
 
 			BulletGrouped.AddNewObj(bullet);
 
-			gunBlob.sub_u8("clip",1);
-
 			if (isClient())
 			{
-				gunBlob.getSprite().PlaySound(gunBlob.get_string("sound"));
+				//gunBlob.getSprite().PlaySound(gunBlob.get_string("sound"));
 				if (hoomanBlob.isFacingLeft())
 				{
 					f32 oAngle = (angle % 360) + 180;
@@ -229,7 +233,7 @@ void onCommand(CRules@ this, u8 cmd, CBitStream @params)
 					ParticleCase2("Case.png",pos,angle);
 				}
 
-				CBlob@ localBlob = getLocalPlayerBlob();
+				/*CBlob@ localBlob = getLocalPlayerBlob();
 				if(localBlob !is null && localBlob is hoomanBlob) // if we are this blob
 				{
 					const int recoil = gunBlob.get_s16("recoil");
@@ -239,7 +243,7 @@ void onCommand(CRules@ this, u8 cmd, CBitStream @params)
 					const int recoilBackTime = gunBlob.get_u16("recoilBackTime");
 					Recoil@ coil = Recoil(localBlob,recoil,recoilTime,recoilBackTime,rx,ry);
 					BulletGrouped.NewRecoil(@coil);
-				}
+				}*/
 			}
 		}
 	}
@@ -258,7 +262,11 @@ void onCommand(CRules@ this, u8 cmd, CBitStream @params)
 			const u32 timeSpawnedAt = params.read_u32(); // getGameTime() it spawned at
 			CMap@ map = getMap(); 
 			
-			gunBlob.sub_u8("clip",b_count);
+			//gunBlob.sub_u8("clip",b_count);
+
+            array<it::IModiStore@>@ equipment;
+            if(!gunBlob.get("equipment", @equipment)) { Nu::Error("equipment array was null"); return; }
+            if(equipment[0] == @null) { Nu::Error("Equipment[0] was null"); return; }
 			
 			if(sFLB)
 			{
@@ -267,7 +275,7 @@ void onCommand(CRules@ this, u8 cmd, CBitStream @params)
 				for (u8 a = 0; a < b_count; a++)
 				{
 					tempAngle += r.NextRanged(2) != 0 ? -r.NextRanged(spread) : r.NextRanged(spread);
-					BulletObj@ bullet = BulletObj(hoomanBlob,gunBlob,tempAngle,pos);
+					BulletObj@ bullet = BulletObj(hoomanBlob,gunBlob,@equipment[0],tempAngle,pos);
 
 					for (u32 timeSpawned = timeSpawnedAt; timeSpawned < getGameTime(); timeSpawned++) // Catch up to everybody else
 					{
@@ -283,7 +291,7 @@ void onCommand(CRules@ this, u8 cmd, CBitStream @params)
 				{
 					f32 tempAngle = angle;
 					tempAngle += r.NextRanged(2) != 0 ? -r.NextRanged(spread) : r.NextRanged(spread);
-					BulletObj@ bullet = BulletObj(hoomanBlob,gunBlob,tempAngle,pos);
+					BulletObj@ bullet = BulletObj(hoomanBlob,gunBlob,@equipment[0],tempAngle,pos);
 
 					for (u32 timeSpawned = timeSpawnedAt; timeSpawned < getGameTime(); timeSpawned++) // Catch up to everybody else
 					{

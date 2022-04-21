@@ -21,6 +21,9 @@
 //Change debug_color to a CONSOLECOLOUR::SCOLOR
 
 
+//TODO, send Multiple projectiles per tick in one command, instead of several commands a tick.
+//TODO, make bullets look something like my friend pedro. Speedy, but not too fast bullets with visible trails.
+
 
 
 namespace it
@@ -109,8 +112,8 @@ namespace it
         bool Serialize(CBitStream@ bs, bool include_sfx = true);
         bool Deserialize(CBitStream@ bs, bool &out include_sfx = void);
 
-        array<IModiF32@>@ getF32Array();
-        array<IModiBool@>@ getBoolArray();
+        array<IModiF32@>@ getModiF32Array();
+        array<IModiBool@>@ getModiBoolArray();
         array<IModifier@>@ getAllModifiers();
         array<f32>@  getVF32();
         f32 getVF32(u8 pos);
@@ -127,8 +130,12 @@ namespace it
 
         u16 getModif32Point(int _name_hash);
         u16 getModif32Point(string _name);
+        f32 getModif32(int _name_hash, u8 what_value = CurrentValue);
+        f32 getModif32(string _name, u8 what_value = CurrentValue);
         u16 getModiboolPoint(int _name_hash);
         u16 getModiboolPoint(string _name);
+        bool getModibool(int _name_hash, u8 what_value = CurrentValue);
+        bool getModibool(string _name, u8 what_value = CurrentValue);
 
         bool addModifier(IModifier@ _modi, bool sync = true);
         bool removeModifier(u16 _pos, bool sync = true);
@@ -412,13 +419,13 @@ namespace it
         SColor debug_color;
 
         array<IModiF32@>@ f32_array;//Stores IModiF32 .. variables? Don't often change. Things like, "max_ammo"
-        array<IModiF32@>@ getF32Array()
+        array<IModiF32@>@ getModiF32Array()
         {
             return @f32_array;
         }
 
         array<IModiBool@>@ bool_array;
-        array<IModiBool@>@ getBoolArray()
+        array<IModiBool@>@ getModiBoolArray()
         {
             return @bool_array;
         }
@@ -527,7 +534,8 @@ namespace it
 
         u16 getModif32Point(int _name_hash)
         {
-            for(u16 i = 0; i < f32_array.size(); i++)
+            u16 _array_size = f32_array.size();
+            for(u16 i = 0; i < _array_size; i++)
             {
                 if(f32_array[i].getNameHash() == _name_hash)
                 {
@@ -540,10 +548,21 @@ namespace it
         {
             return getModif32Point(_name.getHash());
         }
+        f32 getModif32(int _name_hash, u8 what_value = CurrentValue)
+        {
+            u16 point = getModif32Point(_name_hash);
+            if(point == Nu::u16_max()) { Nu::Error("Failed to find Modif32"); return 0.0f; }
+            return f32_array[getModif32Point(_name_hash)][what_value];
+        }
+        f32 getModif32(string _name, u8 what_value = CurrentValue)
+        {
+            return getModif32(_name.getHash(), what_value);
+        }
 
         u16 getModiboolPoint(int _name_hash)
         {
-            for(u16 i = 0; i < bool_array.size(); i++)
+            u16 _array_size = bool_array.size();
+            for(u16 i = 0; i < _array_size; i++)
             {
                 if(bool_array[i].getNameHash() == _name_hash)
                 {
@@ -555,6 +574,16 @@ namespace it
         u16 getModiboolPoint(string _name)
         {
             return getModiboolPoint(_name.getHash());
+        }
+        bool getModibool(int _name_hash, u8 what_value = CurrentValue)
+        {
+            u16 point = getModiboolPoint(_name_hash);
+            if(point == Nu::u16_max()) { Nu::Error("Failed to find ModiBool"); return false; }
+            return bool_array[getModiboolPoint(_name_hash)][what_value];
+        }
+        bool getModibool(string _name, u8 what_value = CurrentValue)
+        {
+            return getModibool(_name.getHash(), what_value);
         }
 
         bool sync_modivars;
@@ -1715,7 +1744,18 @@ namespace it
 
                 f32 random_aim = Nu::getRandomF32(getVF32(CurrentSpread) * -0.5f, getVF32(CurrentSpread) * 0.5f);
 
-                setVF32(LastShotDirection, random_aim + random_deviation);
+                CBlob@ owner_blob = getOwner();
+
+                if(owner_blob == @null) { Nu::Error("owner_blob was null"); return; }
+
+                //Vec2f aimpos = getOwner().getAimPos();
+                //Vec2f vec = aimpos - getOwner().getPosition();
+                //f32 aim_angle = vec.Angle();
+
+                Vec2f aimvector = owner_blob.getAimPos() - owner_blob.getInterpolatedPosition();
+	            f32 aim_angle = owner_blob.isFacingLeft() ? -aimvector.Angle()+180.0f : -aimvector.Angle();
+
+                setVF32(LastShotDirection, (aim_angle + random_aim + random_deviation) % 360);
 
                 print("\nrandom_deviation = " + random_deviation);
                 print("current_spread = " + getVF32(CurrentSpread));
@@ -1789,6 +1829,8 @@ namespace it
         weapon(u16 _initial_item)
         {
             projectile_sfx = "";
+            flesh_hit_sfx = "";
+            object_hit_sfx = "";
             reload_sfx = "";
             empty_max_ammo_sfx = "";
             //empty_mag_use_sfx = "";
@@ -1801,7 +1843,7 @@ namespace it
                 init = true;//Init has been called.
                 class_type = ClassWeapon;
                 
-                ResizeThings(6 + 6 + 5 + 9,//f32
+                ResizeThings(6 + 6 + 5 + 15,//f32
                 2 + 3 + 0 + 2,//bool
                 WeaponFloatCount,//vf32
                 WeaponBoolCount//vbool
@@ -1833,6 +1875,14 @@ namespace it
             f32_array.push_back(@ammo_to_mag_per_reload);
             f32_array.push_back(@reload_time);
             bool_array.push_back(@auto_reload);
+
+
+
+            f32_array.push_back(@projectile_damage);
+            f32_array.push_back(@projectile_knockback);
+            f32_array.push_back(@projectile_speed);
+            f32_array.push_back(@projectile_gravity);
+            f32_array.push_back(@projectile_lifespan);
 
         }
         void setVars() override
@@ -1954,6 +2004,25 @@ namespace it
 
             f32 aim_direction = getVF32(LastShotDirection) 
             + Nu::getRandomF32(random_projectile_spread[CurrentValue] * -0.5, (random_projectile_spread[CurrentValue] * 0.5f));
+
+            CRules@ rules = getRules();
+            CBitStream params;
+
+            CBlob@ _blob = getOwner();
+            if(_blob != @null)
+            {
+                params.write_netid(_blob.getNetworkID());
+                //params.write_netid(gunID);
+                params.write_f32(aim_direction);
+                params.write_Vec2f(_blob.getPosition());//sprite.getWorldTranslation() + fromBarrel
+                params.write_u32(getGameTime());
+
+                rules.SendCommand(rules.getCommandID("fireGun"), params);
+            }
+            else
+            {
+                Nu::Error("owner_blob was null");
+            }
 
             PlaySoundAll(owner_blob, projectile_sfx, 1, 1);
         }
@@ -2163,14 +2232,6 @@ namespace it
 
         //PROJECTILES            //Maybe put all projectile stuff in it's own class, so each gun can have it's own projectile class? I.E for the charge pistol. Two projectile types for one gun.
         //
-            //EFFECTS
-            //
-                IModiBool@ projectile_host_inertia = Modibool("projectile_host_inertia", true);//If this is true, the velocity of the host is applied to the projectile on its creation.
-
-                //array<GunProjectile@> projectile;//By default the gun shoot's the 0'th projectile in this array.
-            //
-            //EFFECTS
-
             //AMOUNT
             //
                 //getVF32(QueuedProjectiles)//Value that holds projectiles waiting to escape from the gun. Think shotgun like weapons.
@@ -2197,6 +2258,91 @@ namespace it
                 string projectile_sfx;//When created this sound is played.
             //
             //SFX
+
+            //EFFECTS
+            //
+                IModiBool@ projectile_host_inertia = Modibool("projectile_host_inertia", true);//If this is true, the velocity of the host is applied to the projectile on its creation.
+
+                //array<GunProjectile@> projectile = array<GunProjectile@>();//By default the gun shoot's the 0'th projectile in this array.
+                //CREATION EFFECTS
+                //
+
+                    //f32 heat_gain;//Amount of heat the weapon gains per projectile.
+
+                //
+                //CREATION EFFECTS
+                //HIT EFFECTS
+                //
+                    IModiF32@ projectile_damage = Modif32("projectile_damage", 0.25f);//below 0 heals
+
+                    //float terrain_damage;//Amount it damages terrain
+
+                    //float damage_shield_mult;//Multiplier to damage against shields
+
+                    //float damage_health_mult;//Multiplier to damage against health
+
+                    //float stun_chance;//Chance to stun targets
+
+                    //float stun_length;//Length that targets are stunned, in ticks.
+
+                    IModiF32@ projectile_knockback = Modif32("projectile_knockback", 0.25f);//How much the projectile pushes a target back upon hitting.
+                    
+                    //float pierce_count;//Amount of times the projectile can pierce enemies without dying. default 0
+
+                    //u8 damage_type;//See damage type enum.
+
+                //
+                //HIT EFFECTS
+
+                //float friendly_fire_mult;//Mutliplier to the amount of damage hitting an ally with this does. Setting this value to 0 makes this projectile not collide with friendlies.
+
+                //TRAVEL EFFECTS
+                //
+                    IModiF32@ projectile_speed = Modif32("projectile_speed", 4.0f);//Below 0 is hitscan? Confirm this later. Or is it setting it to max?
+
+                    //float speed_loss_per_tick;//Amount the projectile speed lowers per tick of flying through the air. (can be negative to increase speed over time.)
+
+                    IModiF32@ projectile_gravity = Modif32("projectile_gravity", 0.025f);//
+
+                    //float max_distance;//Distance the projectile can travel before dying. 0 or below is max.
+
+                    IModiF32@ projectile_lifespan = Modif32("projectile_lifespan", 10 * 30);//Amount of ticks the projectile can stay alive before it is killed. 0 or below is max.
+
+                    //float bounce_count;//Amount of times the projectile can bounce. default 0
+
+                //
+                //TRAVEL EFFECTS
+
+                
+                //AOE
+                //
+                    
+                    //float aoe_radius;//Amount of distance the aoe goes from the projectile.
+
+                    //float aoe_damage;//Amount of damage the aoe does.
+
+                    //float aoe_terrain_damage;//Amount the aoe damages the terrain.
+
+                    //float aoe_knockback;//How much stuff is knocked away from the center point of the aoe.
+                    
+                    //float aoe_stun_chance;
+
+                    //float aoe_stun_length;
+
+                    //f32 aoe_friendly_fire_mult;//Mult applied to the damage this aoe does to friendlies. Does not hit friendlies if this is 0.
+                    
+                //
+                //AOE
+
+                //SFX
+                //
+                    string flesh_hit_sfx;
+
+                    string object_hit_sfx;
+                //
+                //SFX
+            //
+            //EFFECTS
         //
         //PROJECTILES
 
@@ -2210,6 +2356,8 @@ namespace it
                 bs.write_string(empty_max_ammo_sfx);
                 bs.write_string(equip_weapon_sfx);
                 bs.write_string(projectile_sfx);
+                bs.write_string(flesh_hit_sfx);
+                bs.write_string(object_hit_sfx);
             }
             return true;
         }
@@ -2224,6 +2372,8 @@ namespace it
                 if(!bs.saferead_string(empty_max_ammo_sfx)) { Nu::Error("Failed to deserialize empty_max_ammo_sfx"); return false; }
                 if(!bs.saferead_string(equip_weapon_sfx)) { Nu::Error("Failed to deserialize equip_weapon_sfx"); return false; }
                 if(!bs.saferead_string(projectile_sfx)) { Nu::Error("Failed to deserialize projectile_sfx"); return false; }
+                if(!bs.saferead_string(flesh_hit_sfx)) { Nu::Error("Failed to deserialize flesh_hit_sfx"); return false; }
+                if(!bs.saferead_string(object_hit_sfx)) { Nu::Error("Failed to deserialize object_hit_sfx"); return false; }
             }
             return true;
         }
@@ -2257,55 +2407,57 @@ namespace it
 
 
 
-    class GunProjectile
+    /*class GunProjectile
     {
+        GunPorjectile()
+        {
+
+        }
         //CREATION EFFECTS
         //
 
-            f32 heat_gain;//Amount of heat the weapon gains per projectile.
+            //f32 heat_gain;//Amount of heat the weapon gains per projectile.
 
         //
         //CREATION EFFECTS
         //HIT EFFECTS
         //
+            IModiF32@ damage = Modif32("proj_damage", 0.25f);//below 0 heals
 
-            float damage;//below 0 heals
+            //float terrain_damage;//Amount it damages terrain
 
-            float terrain_damage;//Amount it damages terrain
+            //float damage_shield_mult;//Multiplier to damage against shields
 
-            float damage_shield_mult;//Multiplier to damage against shields
+            //float damage_health_mult;//Multiplier to damage against health
 
-            float damage_health_mult;//Multiplier to damage against health
+            //float stun_chance;//Chance to stun targets
 
-            float stun_chance;//Chance to stun targets
+            //float stun_length;//Length that targets are stunned, in ticks.
 
-            float stun_length;//Length that targets are stunned, in ticks.
-
-            float knockback;//How much the projectile pushes a target back upon hitting.
+            IModiF32@ knockback = Modif32("proj_knockback", 0.25f);//How much the projectile pushes a target back upon hitting.
             
-            float pierce_count;//Amount of times the projectile can pierce enemies without dying. default 0
+            //float pierce_count;//Amount of times the projectile can pierce enemies without dying. default 0
 
-            u8 damage_type;//See damage type enum.
+            //u8 damage_type;//See damage type enum.
 
         //
         //HIT EFFECTS
 
-        float friendly_fire_mult;//Mutliplier to the amount of damage hitting an ally with this does. Setting this value to 0 makes this projectile not collide with friendlies.
+        //float friendly_fire_mult;//Mutliplier to the amount of damage hitting an ally with this does. Setting this value to 0 makes this projectile not collide with friendlies.
 
         //TRAVEL EFFECTS
         //
+            IModiF32@ speed = Modif32("proj_speed", 35f);//Below 0 is hitscan? Confirm this later. Or is it setting it to max?
 
-            float speed;//Below 0 is hitscan.
+            //float speed_loss_per_tick;//Amount the projectile speed lowers per tick of flying through the air. (can be negative to increase speed over time.)
 
-            float speed_loss_per_tick;//Amount the projectile speed lowers per tick of flying through the air. (can be negative to increase speed over time.)
+            IModiF32@ gravity = Modif32("proj_gravity", 0.025f);//
 
-            float gravity_mult;//default is 1.0f.
+            //float max_distance;//Distance the projectile can travel before dying. 0 or below is max.
 
-            float max_distance;//Distance the projectile can travel before dying. 0 or below is max.
+            IModiF32@ lifespan = Modif32("proj_lifespan", 0.25f);//Amount of ticks the projectile can stay alive before it is killed. 0 or below is max.
 
-            float lifespan;//Amount of ticks the projectile can stay alive before it is killed. 0 or below is max.
-
-            float bounce_count;//Amount of times the projectile can bounce. default 0
+            //float bounce_count;//Amount of times the projectile can bounce. default 0
 
         //
         //TRAVEL EFFECTS
@@ -2313,33 +2465,33 @@ namespace it
         
         //AOE
         //
-        
-            float aoe_radius;//Amount of distance the aoe goes from the projectile.
-
-            float aoe_damage;//Amount of damage the aoe does.
-
-            float aoe_terrain_damage;//Amount the aoe damages the terrain.
-
-            float aoe_knockback;//How much stuff is knocked away from the center point of the aoe.
             
-            float aoe_stun_chance;
+            //float aoe_radius;//Amount of distance the aoe goes from the projectile.
 
-            float aoe_stun_length;
+            //float aoe_damage;//Amount of damage the aoe does.
 
-            f32 aoe_friendly_fire_mult;//Mult applied to the damage this aoe does to friendlies. Does not hit friendlies if this is 0.
+            //float aoe_terrain_damage;//Amount the aoe damages the terrain.
 
+            //float aoe_knockback;//How much stuff is knocked away from the center point of the aoe.
+            
+            //float aoe_stun_chance;
+
+            //float aoe_stun_length;
+
+            //f32 aoe_friendly_fire_mult;//Mult applied to the damage this aoe does to friendlies. Does not hit friendlies if this is 0.
+            
         //
         //AOE
 
         //SFX
         //
-            string flesh_hit_sfx;
+            string flesh_hit_sfx = "";
 
-            string object_hit_sfx;
+            string object_hit_sfx = "";
         //
         //SFX
 
-    }
+    }*/
 
 
     //360 weapon aiming is done like this
@@ -2561,7 +2713,7 @@ namespace it
             f32 value;
             if(!params.saferead_f32(value)) { Nu::Error("bleh2"); return true;}
 
-            array<IModiF32@>@ f32_array = @equipment[es].getF32Array();
+            array<IModiF32@>@ f32_array = @equipment[es].getModiF32Array();
             f32_array[array_pos].setSyncBaseValue(false);
             f32_array[array_pos][BaseValue] = value;
             f32_array[array_pos].setSyncBaseValue(true);
@@ -2571,7 +2723,7 @@ namespace it
             bool value;
             if(!params.saferead_bool(value)) { Nu::Error("bleh3"); return true;}
 
-            array<IModiBool@>@ bool_array = @equipment[es].getBoolArray();
+            array<IModiBool@>@ bool_array = @equipment[es].getModiBoolArray();
             bool_array[array_pos].setSyncBaseValue(false);
             bool_array[array_pos][BaseValue] = value;
             bool_array[array_pos].setSyncBaseValue(true);
@@ -2583,7 +2735,7 @@ namespace it
             
             array<IModifier@>@ all_modifiers = @equipment[es].getAllModifiers();
 
-            IModifier@ _modi = @CreateModifier(initial_modifier, @equipment[es].getF32Array());
+            IModifier@ _modi = @CreateModifier(initial_modifier, @equipment[es].getModiF32Array());
             all_modifiers.push_back(@_modi);
             _modi.PassiveTick();
         }
