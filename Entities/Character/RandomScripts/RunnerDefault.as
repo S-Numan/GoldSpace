@@ -10,10 +10,10 @@ void onInit(CBlob@ this)
 	this.Tag("medium weight");
 
 	//default player minimap dot - not for migrants
-	if (this.getName() != "migrant")
-	{
+	//if (this.getName() != "migrant")
+	//{
 		this.SetMinimapVars("GUI/Minimap/MinimapIcons.png", 8, Vec2f(8, 8));
-	}
+	//}
 
 	this.set_s16(burn_duration , 130);
 	this.set_f32("heal amount", 0.0f);

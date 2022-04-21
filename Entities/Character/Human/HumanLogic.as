@@ -73,3 +73,10 @@ void onAddToInventory(CBlob@ this, CBlob@ blob)
 {
 
 }
+
+f32 onHit(CBlob@ this, Vec2f worldPoint, Vec2f velocity, f32 damage, CBlob@ hitterBlob, u8 customData)
+{
+    print("hit with damage = " + damage);
+
+    return damage;
+}
