@@ -2289,6 +2289,8 @@ namespace it
                     
                     //float pierce_count;//Amount of times the projectile can pierce enemies without dying. default 0
 
+                    //float pierce_damage_reduction;//Amount of damage this has subtracted from it upon piercing an enemy. If projectile_damage is 0.2, and this is 0.5, upon piercing the next damage will become 0.1
+
                     //u8 damage_type;//See damage type enum.
 
                 //
