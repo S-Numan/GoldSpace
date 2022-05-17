@@ -56,11 +56,11 @@ namespace itpol//Item Pool
                 ent.components = array<SType::IComponent@>();
                 
                 ent_array.push_back(ent);//Create and add new entity
-                ent_array_open.push_back(true);//Entity is currently free for use
+                ent_array_open.push_back(false);//Entity is in use.
             }
             else//Free pos found
             {
-                if(getEnt(ent_id).components.size() != 0) { Nu::Error("Entity has components, yet is tagged free. ent_id =" + ent_id); }
+                if(getEnt(ent_id).components.size() != 0) { Nu::Error("Entity has components, yet is tagged free. ent_id = " + ent_id); }
             }
 
             return ent_id;
@@ -133,19 +133,47 @@ namespace itpol//Item Pool
         //Only meant for use on empty entities
         array<bool> Assign(u32 ent_id, array<u32> com_type_array, array<CBitStream@> default_params = array<CBitStream@>())
         {
+            u32 i;
+            u32 q;
+            
             array<bool> added_array = array<bool>(com_type_array.size(), false);
 
-            for(u32 i = 0; i < com_type_array.size(); i++)
+            SType::Entity@ ent = getEnt(ent_id);
+
+
+            u32 original_ent_components_size = ent.components.size();
+            u32 duplicate_components = 0;
+            //Check for duplicates. Set com_type_array to null if duplicate.
+            for(i = 0; i < original_ent_components_size; i++)
+            {
+                for(q = 0; q < com_type_array.size(); q++)
+                {
+                    if(ent.components[i].getType() == com_type_array[q] && com_type_array[q] != SType::Null)//If duplicate found
+                    {
+                        com_type_array[q] = SType::Null;//Set to null
+                        print("duplicate tallied. TODO, remove this later. It's just to check if this feature works");
+                        duplicate_components++;//Tally duplicate component.
+                    }
+                }
+            }
+            ent.components.resize(original_ent_components_size + com_type_array.size() - duplicate_components);
+
+
+            u32 components_added = 0;
+            for(i = 0; i < com_type_array.size(); i++)
             {
                 if(com_type_array[i] == SType::Nothing) { Nu::Warning("com_type_array[" + i + "] was 0. as in, Nothing."); continue; }
+                if(com_type_array[i] == SType::Null) { continue; }
 
                 u32 com_id = getFreeComByType(com_type_array[i]);//Try finding a free component with this type.
                 if(com_id == Nu::u32_max()) { continue; }//Skip if no free component was found.
                 
-                Assign(ent_id, com_id, i);//Assign component
+                Assign(ent_id, com_id, original_ent_components_size + components_added);//Assign component
 
                 added_array[i] = true;//Component in this position successfully added.
             
+                components_added++;//Tally another component added.
+
                 SType::IComponent@ com = getCom(com_id);
 
                 if(default_params.size() <= i || default_params[i] == @null)
@@ -170,23 +198,55 @@ namespace itpol//Item Pool
             return Assign(ent_id, array<u32>(1, com_type), array<CBitStream@>(1, default_params))[0];
         }
 
+
+
         //1. ent_id, the position the entity is in the pool
         //2. com_id, the position the component is in the pool.
         //3. com_pos, the position the component goes into the component array in the entity.
         //Assign a specific existing component in pool into a specific position into a specific entity's component array.
-        void Assign(u32 ent_id, u32 com_id, u32 com_pos)
+        bool Assign(u32 ent_id, u32 com_id, u32 com_pos)
         {
             SType::Entity@ ent = getEnt(ent_id);
-            if(ent == @null) { Nu::Error("ent was null"); return; }
-            if(ent.components.size() <= com_pos) { Nu::Error("com_pos out of bounds. com_pos = " + com_pos); return; }
-            if(ent.components[com_pos] != @null) { Nu::Error("com_pos already has component. com_pos = " + com_pos); return; }
+            if(ent == @null) { Nu::Error("ent was null"); return false; }
+            
+            if(com_pos == Nu::u32_max())//If com_pos is equal to u32 max value, that means something should be pushed back onto the end of the array.
+            {
+                ent.components.resize(com_pos + 1);//Add one to size to allow it to be added.
+            }
+
+            return Assign(ent, com_id, com_pos);
+        }
+
+        bool Assign(SType::Entity@ ent, u32 com_id, u32 com_pos)
+        {
+            if(ent.components.size() <= com_pos) { Nu::Error("com_pos out of bounds. com_pos = " + com_pos); return false; }
+            if(ent.components[com_pos] != @null) { Nu::Error("com_pos already has component. com_pos = " + com_pos); return false; }
 
             SType::IComponent@ com = getCom(com_id);
-            if(com == @null) { Nu::Error("com was null"); return; }
+            if(com == @null) { Nu::Error("com was null"); return false; }
+
+            //Check for duplicates.
+            for(u32 i = 0; i < ent.components.size(); i++)
+            {
+                //If duplicate found
+                if(ent.components[i] != @null//If the component in the entity is not null
+                && ent.components[i].getType() == com.getType())//If it's type is equal to the component to be added
+                {//Don't let there be more than 1 type in 
+                    print("duplicate found. Type was " + com.getType() + " TODO, remove this message later, this message only exists to check if preventing duplicate adding works.");
+                    return false;
+                }
+            }
 
             @ent.components[com_pos] = @com;
 
             com_array_open[com_id] = false;//Component is now in use.
+            return true;
+        }
+
+        //Pushes component onto the end of the entities component array
+        bool Assign(u32 ent_id, u32 com_id)
+        {
+            return Assign(ent_id, com_id, Nu::u32_max());//Assign component to end.
         }
 
         //Adds new component to com_array. Returns the component's id.

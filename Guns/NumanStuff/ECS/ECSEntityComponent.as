@@ -62,7 +62,7 @@ u32 AddEnemy(CRules@ rules, f32 x, f32 y, f32 health)
     default_params[1].write_f32(20);//health
     
 
-    return CreateEntity(rules, com_type_array, default_params);
+    return SType::CreateEntity(rules, com_type_array, default_params);
 
 
     //CPos().type = Type::POS;
@@ -76,35 +76,35 @@ u32 AddEnemy(CRules@ rules, f32 x, f32 y, f32 health)
     return ent.id;*/
 }
 
-u32 CreateEntity(CRules@ rules, array<u32> com_type_array, array<CBitStream@> default_params)
-{
-    itpol::Pool@ it_pol;
-    if(!rules.get("it_pol", it_pol)) { Nu::Error("Failed to get it_pol"); return Nu::u32_max(); }//Get the pool
-
-    u32 ent_id = it_pol.NewEntity();//Create a new entity, and get it's id
-
-    array<bool> added_array = it_pol.Assign(ent_id, com_type_array, default_params);//Assign components and their default variables to the entity. Return the components that failed to be assigned.
-
-    for(u16 i = 0; i < added_array.size(); i++)
-    {
-        if(added_array[i]) { continue; }//If the position is free, there is no need to make anything as it already exists.
-        //No component in pool. Need to make a new component.
-        SType::IComponent@ com = SType::getStandardComByType(com_type_array[i]);
-        if(default_params[i] != @null)
-        {
-            com.Deserialize(default_params[i]);
-        }
-
-        u32 com_id = it_pol.AddComponent(com, com_type_array[i]);
-
-        it_pol.Assign(ent_id, com_id, i);//entity id, component id, position the com should be placed in the entity's component array.
-    }
-
-    return ent_id;
-}
-
 namespace SType//Standard Type
 {
+    u32 CreateEntity(CRules@ rules, array<u32> com_type_array, array<CBitStream@> default_params)
+    {
+        itpol::Pool@ it_pol;
+        if(!rules.get("it_pol", @it_pol)) { Nu::Error("Failed to get it_pol"); return Nu::u32_max(); }//Get the pool
+
+        u32 ent_id = it_pol.NewEntity();//Create a new entity, and get it's id
+
+        array<bool> added_array = it_pol.Assign(ent_id, com_type_array, default_params);//Assign components and their default variables to the entity. Return the components that failed to be assigned.
+
+        for(u16 i = 0; i < added_array.size(); i++)
+        {
+            if(added_array[i]) { continue; }//If the position is free, there is no need to make anything as it already exists.
+            //No component in pool. Need to make a new component.
+            SType::IComponent@ com = SType::getStandardComByType(com_type_array[i]);
+            if(default_params[i] != @null)
+            {
+                com.Deserialize(default_params[i]);
+            }
+
+            u32 com_id = it_pol.AddComponent(com, com_type_array[i]);
+
+            it_pol.Assign(ent_id, com_id, i);//entity id, component id, position the com should be placed in the entity's component array.
+        }
+
+        return ent_id;
+    }
+
     //struct
     class Entity//Holds Components
     {
@@ -170,10 +170,10 @@ namespace SType//Standard Type
         switch(type)
         {
             case POS:
-                com = CPos();
+                @com = CPos();
             break;
             case HEALTH:
-                com = CHealth();
+                @com = CHealth();
             break;
 
             default:
