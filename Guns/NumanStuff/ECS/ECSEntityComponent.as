@@ -23,7 +23,7 @@
 
 
 //Return's the entity's id.
-u32 AddEnemy(CRules@ rules, f32 x, f32 y, f32 health)
+u32 AddEnemy(CRules@ rules, Vec2f pos, Vec2f velocity, f32 health)
 {
     /*array<u32> com_type_array = 
     {
@@ -51,16 +51,21 @@ u32 AddEnemy(CRules@ rules, f32 x, f32 y, f32 health)
     array<u32> com_type_array = 
     {
         SType::POS,
+        SType::VELOCITY,
         SType::HEALTH
     };
     //Make pos in array @null when you don't want default parameters.
     
-    array<CBitStream@> default_params = array<CBitStream@>(com_type_array.size(), CBitStream());
-    default_params[0].write_f32(5);//x
-    default_params[0].write_f32(10);//y
-
-    default_params[1].write_f32(20);//health
+    array<CBitStream@> default_params = array<CBitStream@>(com_type_array.size());
+    for(u16 i = 0; i < default_params.size(); i++){
+        @default_params[i] = @CBitStream();
+    }
+    default_params[0].write_Vec2f(pos);
     
+    default_params[1].write_Vec2f(velocity);
+
+    default_params[2].write_f32(health);
+
 
     return SType::CreateEntity(rules, com_type_array, default_params);
 
@@ -78,40 +83,50 @@ u32 AddEnemy(CRules@ rules, f32 x, f32 y, f32 health)
 
 namespace SType//Standard Type
 {
-    u32 CreateEntity(CRules@ rules, array<u32> com_type_array, array<CBitStream@> default_params)
+    shared u32 CreateEntity(CRules@ rules, array<u32> com_type_array, array<CBitStream@> default_params)
     {
         itpol::Pool@ it_pol;
         if(!rules.get("it_pol", @it_pol)) { Nu::Error("Failed to get it_pol"); return Nu::u32_max(); }//Get the pool
 
         u32 ent_id = it_pol.NewEntity();//Create a new entity, and get it's id
 
-        array<bool> added_array = it_pol.Assign(ent_id, com_type_array, default_params);//Assign components and their default variables to the entity. Return the components that failed to be assigned.
+        array<bool> added_array = it_pol.AssignByType(ent_id, com_type_array, default_params);//Assign components and their default variables to the entity. Return the components that failed to be assigned.
 
         for(u16 i = 0; i < added_array.size(); i++)
         {
             if(added_array[i]) { continue; }//If the position is free, there is no need to make anything as it already exists.
             //No component in pool. Need to make a new component.
             SType::IComponent@ com = SType::getStandardComByType(com_type_array[i]);
-            if(default_params[i] != @null)
-            {
-                com.Deserialize(default_params[i]);
-            }
 
-            u32 com_id = it_pol.AddComponent(com, com_type_array[i]);
+            u32 com_id = it_pol.AddComponent(com);
 
-            it_pol.Assign(ent_id, com_id, i);//entity id, component id, position the com should be placed in the entity's component array.
+            it_pol.AssignByID(ent_id, com_id, i, default_params[i]);//entity id, component id, position the com should be placed in the entity's component array.
         }
 
         return ent_id;
     }
 
     //struct
-    class Entity//Holds Components
+    shared class Entity//Holds Components
     {
         u32 id;
         array<SType::IComponent@> components;
     }
-    interface IComponent
+    //Returns the pos of the type requested to find. returns true if found, false if not.
+    shared bool EntityHasType(Entity@ ent, u32 type, u32 &out pos)
+    {
+        u32 com_count = ent.components.size();
+        for(u16 i = 0; i < com_count; i++)
+        {
+            if(ent.components[i].getType() == type)
+            {
+                pos = i;
+                return true;
+            }
+        }
+        return false;
+    }
+    shared interface IComponent
     {
         void Deserialize(CBitStream@ params);
         void Default();
@@ -122,7 +137,7 @@ namespace SType//Standard Type
         void setID(u32 _id);
     }
     //struct
-    class Component : IComponent//Holds DATA only.
+    shared class Component : IComponent//Holds DATA only.
     {
         u32 id;//Stores it's own id in the pool.
         u32 type;//Stores type of class. The type is currently the hash of the class name.
@@ -155,22 +170,26 @@ namespace SType//Standard Type
         }
     }
 
-    enum ComponentType
+    shared enum ComponentType
     {
         Nothing = 0,
         Null = 1,
         POS,
+        VELOCITY,
         HEALTH,
         TypeCount
     }
 
-    IComponent@ getStandardComByType(u32 type)
+    shared IComponent@ getStandardComByType(u32 type)
     {
         Component@ com;
         switch(type)
         {
             case POS:
                 @com = CPos();
+            break;
+            case VELOCITY:
+                @com = CVelocity();
             break;
             case HEALTH:
                 @com = CHealth();
@@ -187,24 +206,39 @@ namespace SType//Standard Type
         return com;
     }
 
-    class CPos : Component
+    shared class CPos : Component
     {
         void Deserialize(CBitStream@ params) override
         {
-            if(!params.saferead_f32(x)) { Nu::Error("Failed saferead on type " + type); }
-            if(!params.saferead_f32(y)) { Nu::Error("Failed saferead on type " + type); }
+            if(!params.saferead_Vec2f(pos)) { Nu::Error("Failed saferead on type " + type); }
         }
         void Default() override
         {
-            x = 0.0f;
-            y = 0.0f;
+            pos = Vec2f(0, 0);
+            old_pos = Vec2f(0, 0);
         }
 
-        f32 x;
-        f32 y;
+        Vec2f pos;
+        Vec2f old_pos;
     }
 
-    class CHealth : Component
+    shared class CVelocity : Component
+    {
+        void Deserialize(CBitStream@ params) override
+        {
+            if(!params.saferead_Vec2f(velocity)) { Nu::Error("Failed saferead on type " + type); }
+        }
+        void Default() override
+        {
+            velocity = Vec2f(0.0f, 0.0f);
+            old_velocity = Vec2f(0.0f, 0.0f);
+        }
+
+        Vec2f velocity;
+        Vec2f old_velocity;
+    }
+
+    shared class CHealth : Component
     {
         void Deserialize(CBitStream@ params) override
         {

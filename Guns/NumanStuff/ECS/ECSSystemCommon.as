@@ -3,7 +3,13 @@
 namespace itsys//Item system
 {
     //Entity watcher
-
+    /*shared class System
+    {
+        System()
+        {
+            
+        }
+    }*/
 }
 //I : The system contains funcdefes for each bit of logic.
 //So when you want things to be removed when no health, you give the system a funcdef that handles that.
@@ -11,7 +17,7 @@ namespace itsys//Item system
 
 namespace itpol//Item Pool
 {
-    class Pool
+    shared class Pool
     {
         Pool()
         {
@@ -99,6 +105,11 @@ namespace itpol//Item Pool
             return ent_array[id];
         }
 
+        u32 EntCount()
+        {
+            return ent_array.size();
+        }
+
         SType::IComponent@ getCom(u32 id)
         {
             if(id >= com_array.size())
@@ -106,6 +117,11 @@ namespace itpol//Item Pool
                 Nu::Error("Attempted to reach beyond array bounds"); return @null;
             }
             return com_array[id];
+        }
+
+        u32 ComCount()
+        {
+            return com_array.size();
         }
 
         //Finds a free component in the com_array with the given type. returns u32_max if none have been found.
@@ -130,8 +146,7 @@ namespace itpol//Item Pool
         //Returns bool array that corresponds with component type array.
         //Positions that are true in this array were already found in the pool, positions that are false need to be created.
         //Assigns pre existing component(s) to the given entity(id) with optional parameters. Returns bool array of which components were correctly added.
-        //Only meant for use on empty entities
-        array<bool> Assign(u32 ent_id, array<u32> com_type_array, array<CBitStream@> default_params = array<CBitStream@>())
+        array<bool> AssignByType(u32 ent_id, array<u32> com_type_array, array<CBitStream@> default_params = array<CBitStream@>())
         {
             u32 i;
             u32 q;
@@ -151,7 +166,7 @@ namespace itpol//Item Pool
                     if(ent.components[i].getType() == com_type_array[q] && com_type_array[q] != SType::Null)//If duplicate found
                     {
                         com_type_array[q] = SType::Null;//Set to null
-                        print("duplicate tallied. TODO, remove this later. It's just to check if this feature works");
+                        //print("duplicate tallied. TODO, remove this later. It's just to check if this feature works");
                         duplicate_components++;//Tally duplicate component.
                     }
                 }
@@ -168,34 +183,28 @@ namespace itpol//Item Pool
                 u32 com_id = getFreeComByType(com_type_array[i]);//Try finding a free component with this type.
                 if(com_id == Nu::u32_max()) { continue; }//Skip if no free component was found.
                 
-                Assign(ent_id, com_id, original_ent_components_size + components_added);//Assign component
+                CBitStream@ bs;
+                if(i < default_params.size())//Provided i is within default_params
+                {
+                    @bs = @default_params[i];//Set it to whatever default_params[i] is.
+                }
+                else { @bs = @null; }//Otherwise, bs is null.
+
+                AssignByID(ent_id, com_id, original_ent_components_size + components_added, bs);//Assign component
 
                 added_array[i] = true;//Component in this position successfully added.
             
                 components_added++;//Tally another component added.
-
-                SType::IComponent@ com = getCom(com_id);
-
-                if(default_params.size() <= i || default_params[i] == @null)
-                {
-                    //Default params do not exist
-                    com.Default();
-                }
-                else
-                {
-                    //Default param exists.
-                    com.Deserialize(default_params[i]);//Add default params.
-                }
             }
 
             return added_array;
         }
 
-        bool Assign(u32 ent_id, u32 com_type, CBitStream@ default_params)
+        bool AssignByType(u32 ent_id, u32 com_type, CBitStream@ default_params)
         {
             //Nu::Warning("Uninplemented");
 
-            return Assign(ent_id, array<u32>(1, com_type), array<CBitStream@>(1, default_params))[0];
+            return AssignByType(ent_id, array<u32>(1, com_type), array<CBitStream@>(1, default_params))[0];
         }
 
 
@@ -204,20 +213,21 @@ namespace itpol//Item Pool
         //2. com_id, the position the component is in the pool.
         //3. com_pos, the position the component goes into the component array in the entity.
         //Assign a specific existing component in pool into a specific position into a specific entity's component array.
-        bool Assign(u32 ent_id, u32 com_id, u32 com_pos)
+        bool AssignByID(u32 ent_id, u32 com_id, u32 com_pos, CBitStream@ params = @null)
         {
             SType::Entity@ ent = getEnt(ent_id);
             if(ent == @null) { Nu::Error("ent was null"); return false; }
             
             if(com_pos == Nu::u32_max())//If com_pos is equal to u32 max value, that means something should be pushed back onto the end of the array.
             {
+                com_pos = ent.components.size();//com_pos is the size of the components array
                 ent.components.resize(com_pos + 1);//Add one to size to allow it to be added.
             }
 
-            return Assign(ent, com_id, com_pos);
+            return AssignByID(ent, com_id, com_pos, params);
         }
 
-        bool Assign(SType::Entity@ ent, u32 com_id, u32 com_pos)
+        bool AssignByID(SType::Entity@ ent, u32 com_id, u32 com_pos, CBitStream@ params = @null)
         {
             if(ent.components.size() <= com_pos) { Nu::Error("com_pos out of bounds. com_pos = " + com_pos); return false; }
             if(ent.components[com_pos] != @null) { Nu::Error("com_pos already has component. com_pos = " + com_pos); return false; }
@@ -232,9 +242,20 @@ namespace itpol//Item Pool
                 if(ent.components[i] != @null//If the component in the entity is not null
                 && ent.components[i].getType() == com.getType())//If it's type is equal to the component to be added
                 {//Don't let there be more than 1 type in 
-                    print("duplicate found. Type was " + com.getType() + " TODO, remove this message later, this message only exists to check if preventing duplicate adding works.");
+                    //print("duplicate found. Type was " + com.getType() + " TODO, remove this message later, this message only exists to check if preventing duplicate adding works.");
                     return false;
                 }
+            }
+
+            //Assign default parameters, if given.
+            if(params != @null)
+            {
+                params.ResetBitIndex();
+                com.Deserialize(params);
+            }
+            else//No default parameters? Just default the values inside.
+            {
+                com.Default();
             }
 
             @ent.components[com_pos] = @com;
@@ -244,13 +265,13 @@ namespace itpol//Item Pool
         }
 
         //Pushes component onto the end of the entities component array
-        bool Assign(u32 ent_id, u32 com_id)
+        bool AssignByID(u32 ent_id, u32 com_id, CBitStream@ params = @null)
         {
-            return Assign(ent_id, com_id, Nu::u32_max());//Assign component to end.
+            return AssignByID(ent_id, com_id, Nu::u32_max(), params);//Assign component to end.
         }
 
         //Adds new component to com_array. Returns the component's id.
-        u32 AddComponent(SType::IComponent@ com, u32 com_type)
+        u32 AddComponent(SType::IComponent@ com)
         {
             if(com == @null) { Nu::Error("com was null"); return Nu::u32_max(); }
 
@@ -258,7 +279,7 @@ namespace itpol//Item Pool
 
             com_array.push_back(com);//New component in array
             com_array_open.push_back(true);//This component is free to be used.
-            com_array_type.push_back(com_type);//This is the component's type.
+            com_array_type.push_back(com.getType());//This is the component's type.
 
             com.setID(com_id);
 
