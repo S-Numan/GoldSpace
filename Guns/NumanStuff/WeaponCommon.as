@@ -2643,6 +2643,7 @@ namespace it
             }
             else if(this.getCommandID("deserialize_equipment") == cmd)
             {
+                if(!isClient()) { return; }//Stop if server
                 print("deserialize_equipment");
                 array<it::IModiStore@>@ equipment;
                 if(!this.get("equipment", @equipment)) { Nu::Error("equipment array was null"); return true; }
