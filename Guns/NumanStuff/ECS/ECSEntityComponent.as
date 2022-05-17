@@ -68,17 +68,6 @@ u32 AddEnemy(CRules@ rules, Vec2f pos, Vec2f velocity, f32 health)
 
 
     return SType::CreateEntity(rules, com_type_array, default_params);
-
-
-    //CPos().type = Type::POS;
-
-    /*
-    
-    ent.components.resize(3);
-    ent.components[0] = getCPos(x, y);
-    ent.components[1] = getCHealth(health);
-    ent.components[2] = getCDeathSound("deathsound.ogg");
-    return ent.id;*/
 }
 
 namespace SType//Standard Type
@@ -107,18 +96,19 @@ namespace SType//Standard Type
     }
 
     //struct
-    shared class Entity//Holds Components
+    /*shared class Entity//Holds Components
     {
         u32 id;
         array<SType::IComponent@> components;
-    }
+    }*/
+    
     //Returns the pos of the type requested to find. returns true if found, false if not.
-    shared bool EntityHasType(Entity@ ent, u32 type, u32 &out pos)
+    shared bool EntityHasType(array<SType::IComponent@>@ ent, u32 type, u32 &out pos)
     {
-        u32 com_count = ent.components.size();
+        u32 com_count = ent.size();
         for(u16 i = 0; i < com_count; i++)
         {
-            if(ent.components[i].getType() == type)
+            if(ent[i].getType() == type)
             {
                 pos = i;
                 return true;

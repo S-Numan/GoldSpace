@@ -40,7 +40,7 @@ void onTick(CRules@ rules)
     u32 entity_count = it_pol.EntCount();
     for(u16 i = 0; i < entity_count; i++)
     {
-        SType::Entity@ ent = it_pol.getEnt(i);
+        array<SType::IComponent@>@ ent = it_pol.getEnt(i);
         
         u32 POS;
         if(SType::EntityHasType(ent, SType::POS, POS))
@@ -48,12 +48,14 @@ void onTick(CRules@ rules)
             u32 VELOCITY;
             if(SType::EntityHasType(ent, SType::VELOCITY, VELOCITY))
             {
-                SType::CPos@ CPos = cast<SType::CPos@>(ent.components[POS]);
-                SType::CVelocity@ CVelocity = cast<SType::CVelocity@>(ent.components[VELOCITY]);
+                SType::CPos@ CPos = cast<SType::CPos@>(ent[POS]);
+                SType::CVelocity@ CVelocity = cast<SType::CVelocity@>(ent[VELOCITY]);
 
                 CPos.pos += CVelocity.velocity;
-
-                RenderTestImage(CPos.pos);
+                if(isClient())
+                {
+                    RenderTestImage(CPos.pos);
+                }
             }
         }
     }

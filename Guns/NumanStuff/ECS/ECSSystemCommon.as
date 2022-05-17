@@ -14,6 +14,10 @@ namespace itsys//Item system
 //I : The system contains funcdefes for each bit of logic.
 //So when you want things to be removed when no health, you give the system a funcdef that handles that.
 //sys.addfunc(NoHealthDie(entity)) Something like this? Then in NoHealthDie it checks if that entity has a health component, and kills the ent on it's health reaching 0.
+//Probably doesn't work between modules. Thus, cannot use.
+
+//How about, each script that implements it's own components also implements the system logic adjacent to them. In which they get the pool themselves and do ent logic themselves too.
+//Makes components not do logic in order? So that's not good. Also might be slow with having to recheck for types constantly in each file.
 
 namespace itpol//Item Pool
 {
@@ -26,7 +30,7 @@ namespace itpol//Item Pool
             com_array_type = array<u32>();
 
 
-            ent_array = array<SType::Entity@>();
+            ent_array = array<array<SType::IComponent@>@>();
             ent_array_open = array<bool>();
         }
 
@@ -34,7 +38,7 @@ namespace itpol//Item Pool
         array<bool> com_array_open;//Stores every position in the com_array that is not being used by an entity, thus free to take by any other entity. When true, that means the position is free to grab.
         array<u32> com_array_type;//Stores the type of every position in the com_array.
 
-        array<SType::Entity@> ent_array;
+        array<array<SType::IComponent@>@> ent_array;
         array<bool> ent_array_open;//Stores every position in the ent_array that is free for taking.
 
         //Find open position in the ent array. Returns the ent_array size if no free positions were found.
@@ -57,16 +61,14 @@ namespace itpol//Item Pool
             u32 ent_id = getEntID();//Entity id
             if(ent_id == ent_array.size())//No free position found?
             {
-                SType::Entity@ ent = SType::Entity();
-                ent.id = ent_id;
-                ent.components = array<SType::IComponent@>();
+                array<SType::IComponent@>@ ent = array<SType::IComponent@>();
                 
-                ent_array.push_back(ent);//Create and add new entity
+                ent_array.push_back(@ent);//Create and add new entity
                 ent_array_open.push_back(false);//Entity is in use.
             }
             else//Free pos found
             {
-                if(getEnt(ent_id).components.size() != 0) { Nu::Error("Entity has components, yet is tagged free. ent_id = " + ent_id); }
+                if(getEnt(ent_id).size() != 0) { Nu::Error("Entity has components, yet is tagged free. ent_id = " + ent_id); }
             }
 
             return ent_id;
@@ -80,29 +82,29 @@ namespace itpol//Item Pool
             }
 
             //Clear components in array as free to use for other entities.
-            for(u32 i = 0; i < ent_array[ent_id].components.size(); i++)
+            for(u32 i = 0; i < ent_array[ent_id].size(); i++)
             {
-                u32 com_id = ent_array[ent_id].components[i].getID();//Fetch position of component in com_array.
+                u32 com_id = ent_array[ent_id][i].getID();//Fetch position of component in com_array.
 
                 //Temporary, just here to make sure everything is working. TODO, remove.
-                if(com_array_type[com_id] != ent_array[ent_id].components[i].getType()) { Nu::Error("type of array being cleared is different. com_type = " + com_array_type[com_id] + " ent_com_type = " + ent_array[ent_id].components[i].getType()); }
+                if(com_array_type[com_id] != ent_array[ent_id][i].getType()) { Nu::Error("type of array being cleared is different. com_type = " + com_array_type[com_id] + " ent_com_type = " + ent_array[ent_id][i].getType()); }
                 
                 com_array_open[com_id] = true;//This component is free for use
             }
-            ent_array[ent_id].components.resize(0);
+            ent_array[ent_id].resize(0);
 
             
             ent_array_open[ent_id] = true;//This entity is free to use.
         }
 
         //Get entity by id
-        SType::Entity@ getEnt(u32 id)
+        array<SType::IComponent@>@ getEnt(u32 id)
         {
             if(id >= ent_array.size())
             {
                 Nu::Error("Attempted to reach beyond array bounds"); return @null;
             }
-            return ent_array[id];
+            return @ent_array[id];
         }
 
         u32 EntCount()
@@ -153,17 +155,17 @@ namespace itpol//Item Pool
             
             array<bool> added_array = array<bool>(com_type_array.size(), false);
 
-            SType::Entity@ ent = getEnt(ent_id);
+            array<SType::IComponent@>@ ent = getEnt(ent_id);
 
 
-            u32 original_ent_components_size = ent.components.size();
+            u32 original_ent_components_size = ent.size();
             u32 duplicate_components = 0;
             //Check for duplicates. Set com_type_array to null if duplicate.
             for(i = 0; i < original_ent_components_size; i++)
             {
                 for(q = 0; q < com_type_array.size(); q++)
                 {
-                    if(ent.components[i].getType() == com_type_array[q] && com_type_array[q] != SType::Null)//If duplicate found
+                    if(ent[i].getType() == com_type_array[q] && com_type_array[q] != SType::Null)//If duplicate found
                     {
                         com_type_array[q] = SType::Null;//Set to null
                         //print("duplicate tallied. TODO, remove this later. It's just to check if this feature works");
@@ -171,7 +173,7 @@ namespace itpol//Item Pool
                     }
                 }
             }
-            ent.components.resize(original_ent_components_size + com_type_array.size() - duplicate_components);
+            ent.resize(original_ent_components_size + com_type_array.size() - duplicate_components);
 
 
             u32 components_added = 0;
@@ -215,32 +217,32 @@ namespace itpol//Item Pool
         //Assign a specific existing component in pool into a specific position into a specific entity's component array.
         bool AssignByID(u32 ent_id, u32 com_id, u32 com_pos, CBitStream@ params = @null)
         {
-            SType::Entity@ ent = getEnt(ent_id);
+            array<SType::IComponent@>@ ent = getEnt(ent_id);
             if(ent == @null) { Nu::Error("ent was null"); return false; }
             
             if(com_pos == Nu::u32_max())//If com_pos is equal to u32 max value, that means something should be pushed back onto the end of the array.
             {
-                com_pos = ent.components.size();//com_pos is the size of the components array
-                ent.components.resize(com_pos + 1);//Add one to size to allow it to be added.
+                com_pos = ent.size();//com_pos is the size of the components array
+                ent.resize(com_pos + 1);//Add one to size to allow it to be added.
             }
 
             return AssignByID(ent, com_id, com_pos, params);
         }
 
-        bool AssignByID(SType::Entity@ ent, u32 com_id, u32 com_pos, CBitStream@ params = @null)
+        bool AssignByID(array<SType::IComponent@>@ ent, u32 com_id, u32 com_pos, CBitStream@ params = @null)
         {
-            if(ent.components.size() <= com_pos) { Nu::Error("com_pos out of bounds. com_pos = " + com_pos); return false; }
-            if(ent.components[com_pos] != @null) { Nu::Error("com_pos already has component. com_pos = " + com_pos); return false; }
+            if(ent.size() <= com_pos) { Nu::Error("com_pos out of bounds. com_pos = " + com_pos); return false; }
+            if(ent[com_pos] != @null) { Nu::Error("com_pos already has component. com_pos = " + com_pos); return false; }
 
             SType::IComponent@ com = getCom(com_id);
             if(com == @null) { Nu::Error("com was null"); return false; }
 
             //Check for duplicates.
-            for(u32 i = 0; i < ent.components.size(); i++)
+            for(u32 i = 0; i < ent.size(); i++)
             {
                 //If duplicate found
-                if(ent.components[i] != @null//If the component in the entity is not null
-                && ent.components[i].getType() == com.getType())//If it's type is equal to the component to be added
+                if(ent[i] != @null//If the component in the entity is not null
+                && ent[i].getType() == com.getType())//If it's type is equal to the component to be added
                 {//Don't let there be more than 1 type in 
                     //print("duplicate found. Type was " + com.getType() + " TODO, remove this message later, this message only exists to check if preventing duplicate adding works.");
                     return false;
@@ -258,7 +260,7 @@ namespace itpol//Item Pool
                 com.Default();
             }
 
-            @ent.components[com_pos] = @com;
+            @ent[com_pos] = @com;
 
             com_array_open[com_id] = false;//Component is now in use.
             return true;
