@@ -11,7 +11,7 @@ namespace EnT
         {
             SType::POS,
             SType::VELOCITY,
-            //SType::IMAGE,
+            SType::IMAGE,
             SType::HEALTH
         };
         
@@ -25,9 +25,9 @@ namespace EnT
         
         default_params[1].write_Vec2f(velocity);
 
-        //@default_params[2] = @null;
+        @default_params[2] = @null;
 
-        default_params[2].write_f32(health);
+        default_params[3].write_f32(health);
 
 
         u32 ent_id = CType::CreateEntity(rules, it_pol, com_type_array, default_params

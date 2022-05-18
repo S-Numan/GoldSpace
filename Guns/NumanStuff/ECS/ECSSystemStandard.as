@@ -11,15 +11,29 @@ void onInit(CRules@ rules)
     for(u32 i = 0; i < 3000; i++)
     {
         u32 enemy_id = EnT::AddEnemy(rules, it_pol, Vec2f(0,30), Vec2f(1, 0), 1.0f);
-        //it_pol.UnassignByType(enemy_id, SType::IMAGE);
+
+        it_pol.UnassignByType(enemy_id, SType::IMAGE);
     }
 
-    EnT::AddEnemy(rules, it_pol, Vec2f(0,10), Vec2f(1, 0), 30.0f);
-    EnT::AddEnemy(rules, it_pol, Vec2f(0,200), Vec2f(2, 0), 30.0f);
+    print("remove ent test");
+    u32 remove_ent_id = EnT::AddEnemy(rules, it_pol, Vec2f(0,10), Vec2f(1, 0), 30.0f);
+    it_pol.RemoveEntity(remove_ent_id);
+
+
+    print("use removed ent components test");
+    EnT::AddEnemy(rules, it_pol, Vec2f(0,100), Vec2f(2, 0), 30.0f);
+    
+    
+    print("remove component from ent test");
+    u32 remove_com_id = EnT::AddEnemy(rules, it_pol, Vec2f(0,200), Vec2f(3, 0), 30.0f);
+    it_pol.UnassignByType(remove_com_id, SType::HEALTH);
+
+    
+    EnT::AddEnemy(rules, it_pol, Vec2f(0,300), Vec2f(4, 0), 30.0f);
 
     print("check duplicate adding");
 
-    u32 enemy_id3 = EnT::AddEnemy(rules, it_pol, Vec2f(0,400), Vec2f(4, 0), 30.0f);
+    u32 enemy_id3 = EnT::AddEnemy(rules, it_pol, Vec2f(0,400), Vec2f(5, 0), 30.0f);
     array<u16> com_type_array = 
     {
         SType::POS,

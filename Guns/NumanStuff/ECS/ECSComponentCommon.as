@@ -24,9 +24,10 @@ namespace CType//Common Type
     u32 CreateEntity(CRules@ rules, itpol::Pool@ it_pol, array<u16> com_type_array, array<CBitStream@> default_params = array<CBitStream@>())
     {
         u32 ent_id = it_pol.NewEntity();//Create a new entity, and get it's id
+        array<CType::IComponent@>@ ent = it_pol.getEnt(ent_id);
 
         array<bool> added_array = it_pol.AssignByType(ent_id, com_type_array, default_params);//Assign components and their default variables to the entity. Return the components that failed to be assigned.
-        u16 q;
+
         for(u16 i = 0; i < added_array.size(); i++)
         {
             if(added_array[i]) { continue; }//If the position is free, there is no need to make anything as it already exists.
@@ -37,14 +38,15 @@ namespace CType//Common Type
             if(com == @null) { Nu::Warning("a component with the given type " + com_type_array[i] + " was not found."); continue; }
 
             u32 com_id = it_pol.AddComponent(com);
-            
+            u16 com_pos = getFreePosInEntity(ent);
+
             if(i < default_params.size())//Provided i is within default_params
             {
-                it_pol.AssignByID(ent_id, com_type_array[i], com_id, i, default_params[i]);//entity id, component type, component id, position the com should be placed in the entity's component array.
+                it_pol.AssignByID(ent_id, com_type_array[i], com_id, com_pos, default_params[i]);//entity id, component type, component id, position the com should be placed in the entity's component array.
             }
             else
             {
-                it_pol.AssignByID(ent_id, com_type_array[i], com_id, i);
+                it_pol.AssignByID(ent_id, com_type_array[i], com_id, com_pos);
             }
         }
 
@@ -88,6 +90,7 @@ namespace CType//Common Type
         u16 com_count = ent.size();
         for(u16 i = 0; i < com_count; i++)
         {
+            if(ent[i] == @null) { continue; }//Skip null component
             if(ent[i].getType() == type)
             {
                 pos = i;
@@ -96,6 +99,20 @@ namespace CType//Common Type
         }
         return false;
     }
+    shared u16 getFreePosInEntity(array<CType::IComponent@>@ ent)
+    {
+        u16 com_count = ent.size();
+        for(u16 i = 0; i < com_count; i++)
+        {
+            if(ent[i] == @null)
+            {
+                return i;
+            }
+        }
+
+        return com_count;
+    }
+
     shared interface IComponent
     {
         void Deserialize(CBitStream@ params);
