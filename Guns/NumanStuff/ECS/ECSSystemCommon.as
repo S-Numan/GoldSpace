@@ -151,6 +151,7 @@ namespace itpol//Item Pool
             return com_array_ent[type][id];
         }
 
+
         u16 getComTypeCount(u16 type)
         {
             if(type >= com_array.size())
@@ -263,6 +264,24 @@ namespace itpol//Item Pool
             return AssignByType(ent_id, array<u16>(1, com_type), array<CBitStream@>(1, default_params))[0];
         }
 
+        void UnassignByType(u32 ent_id, u16 com_type)
+        {
+            UnassignByType(getEnt(ent_id), com_type);
+        }
+
+        void UnassignByType(array<CType::IComponent@>@ ent, u16 com_type)
+        {
+            u16 com_pos;
+
+            if(CType::EntityHasType(ent, com_type, com_pos))//If the entity has this type
+            {
+                //ent[com_pos] = @null;
+                //TODO, reimplement the entity class. Check and skip every @null component. don't use removeAt, use the above ^
+                com_array_ent[ent[com_pos].getType()][ent[com_pos].getID()] = 0;//component is now free for use by any other entity.
+                
+                ent.removeAt(com_pos);
+            }
+        }
 
 
         //1. ent_id, the position the entity is in the pool

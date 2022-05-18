@@ -8,6 +8,12 @@ void onInit(CRules@ rules)
 {
     onInitSystem(rules);
 
+    for(u32 i = 0; i < 3000; i++)
+    {
+        u32 enemy_id = EnT::AddEnemy(rules, it_pol, Vec2f(0,30), Vec2f(1, 0), 1.0f);
+        //it_pol.UnassignByType(enemy_id, SType::IMAGE);
+    }
+
     EnT::AddEnemy(rules, it_pol, Vec2f(0,10), Vec2f(1, 0), 30.0f);
     EnT::AddEnemy(rules, it_pol, Vec2f(0,200), Vec2f(2, 0), 30.0f);
 
@@ -27,6 +33,7 @@ void onInit(CRules@ rules)
     CType::IComponent@ com = CType::getComByType(rules, SType::POS);
     u32 enemy_id3_com_id = it_pol.AddComponent(com);
     it_pol.AssignByID(enemy_id3, com.getType(), enemy_id3_com_id);
+
 }
 
 
