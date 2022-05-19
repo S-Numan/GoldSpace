@@ -66,7 +66,6 @@ namespace CType//Common Type
             if(com != @null)//If com was found
             {
                 com.setType(type);
-                com.Default();
                 return @com;
             }
         }
