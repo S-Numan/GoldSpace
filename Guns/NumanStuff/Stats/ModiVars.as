@@ -123,6 +123,7 @@ shared interface IModiF32
     bool Deserialize(CBitStream@ bs);
 }
 
+//TODO, only update current value when nessasary.
 class Modif32 : IModiF32
 {
     //Base

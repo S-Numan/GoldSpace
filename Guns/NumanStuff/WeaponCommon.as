@@ -815,7 +815,7 @@ namespace it
         {
         }
 
-        u32 ticks_since_created;
+        u32 ticks_since_created;//TODO, this store the getGameTime() on creation. No need to tick up 1 every tick.
         u32 getTicksSinceCreated()
         {
             return u32(ticks_since_created);
