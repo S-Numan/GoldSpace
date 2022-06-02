@@ -42,7 +42,7 @@ namespace AlterItem
 
         Nu::NuStateImage@ grid_image = Nu::NuStateImage(Nu::POSPositionsCount);//Here we create a state image with POSPositionCount states (for color and frames and stuff) 
 
-        grid_image.CreateImage("white_pixel", "WhitePixel.png");//Creates an image from a png
+        grid_image.CreateImage();//Creates an image from a png
 
         //grid_image.setFrameSize(Vec2f(32, 32));//Here we set the frame size of the image.
 
@@ -70,7 +70,7 @@ namespace AlterItem
             slider_menu.clearBackgrounds();
 
             Nu::NuStateImage@ slider_image = Nu::NuStateImage(Nu::POSPositionsCount);
-            slider_image.CreateImage("white_pixel", "WhitePixel.png");
+            slider_image.CreateImage();
             slider_image.setColor(SColor(255, 180, 25, 25));
 
             slider_menu.addBackground(slider_image);
@@ -78,7 +78,7 @@ namespace AlterItem
             slider_menu.slider_button.clearBackgrounds();
 
             Nu::NuStateImage@ button_image = Nu::NuStateImage(Nu::POSPositionsCount);
-            button_image.CreateImage("white_pixel", "WhitePixel.png");
+            button_image.CreateImage();
             button_image.setColor(SColor(255, 25, 25, 180));
 
             slider_menu.slider_button.addBackground(button_image);
